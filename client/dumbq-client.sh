@@ -235,7 +235,11 @@ echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
 
 # Check for overriden user preference file
-[ ! -f ${CONFIG_PREFERENCE} ] && CONFIG_PREFERENCE=""
+if [ ! -f ${CONFIG_PREFERENCE} ];
+	CONFIG_PREFERENCE=""
+else
+	echo "NOTE: Overriding project preference from ${CONFIG_PREFERENCE}"
+fi
 
 # Refresh cache
 curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
