@@ -2,6 +2,16 @@
 
 A very simple service that starts multiple project agents inside a micro-cernvm distribution in isolated linux containers.
 
+## How it works?
+
+There is a configuration file in a server, where you define the different projects you have and the chance of each of these projects to be selected by a  volunteer's computer.
+
+When the VM is booted, the script will fetch this configuration, roll a dice and depending on the result, pick one of the projects defined in the configuration and start it.
+
+Each project is started in a new CernVM fork, running in an isolated linux container. For more details on this check the `cernvm-fork` utility.
+
+In principle if your project agent runs in CernVM or in SLC6, you are ready to use this utility off-the-shelf.
+
 # Server-Side
 
 The ONLY thing you need on the server is a text file served by a webserver in the following syntax:
