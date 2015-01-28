@@ -207,6 +207,11 @@ function has_free_slot {
 
 }
 
+# Banner
+echo "DumbQ Client v0.1 - Ioannis Charalampidis, PH-SFT, CERN"
+echo ""
+echo "INFO: Using configuration from ${CONFIG_SOURCE}"
+
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
