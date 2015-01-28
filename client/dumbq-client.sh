@@ -50,7 +50,7 @@ function is_config_invalid {
 		[ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
 
 		# Check if we have a valid format in the line
-		[ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 1
+		[ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 0
 
 		# That looks good
 		let NUM_PRJECTS++
