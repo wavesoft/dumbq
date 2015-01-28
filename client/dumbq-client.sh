@@ -108,7 +108,7 @@ function pick_project {
 			if [ ! -z "$PREF_CHANCE" ]; then
 
 				# Change preference
-				echo "INFO: Overriding preference to ${PREF_CHANCE}% for project ${P_NAME}"
+				echo "INFO: Overriding preference to ${PREF_CHANCE}% for project ${P_NAME}" >&2
 				O_CHANCE=${PREF_CHANCE}
 
 			fi
