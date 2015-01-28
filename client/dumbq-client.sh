@@ -25,6 +25,7 @@ CERNVM_FORK_BIN=/usr/bin/cernvm-fork
 # Local configuration
 DUMBQ_LIBDIR=/var/lib/dumbq
 DUMBQ_RUNDIR=${DUMBQ_LIBDIR}/run
+CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 
 # Lookup some general metrics in the system
@@ -96,6 +97,17 @@ function pick_project {
 
 		# Split options
 		O_CHANCE=$(echo "$P_OPTIONS" | awk -F',' '{print $1}')
+
+		# Check for overriden chance to this project
+		if [ ! -z "${CONFIG_PREFERENCE}" -a -f "${CONFIG_PREFERENCE}" ]; then
+
+			# Get preferred chance (use wildcard '*' for all projects if specified)
+			PREF_CHANCE=$(cat "${CONFIG_PREFERENCE}" | grep -E "(\*|${P_NAME}):" | sort | tail -n1 | awk -F':' '{ print $2 }')
+			
+			# If we have no value, keep it as-is
+			[ ! -z "$PREF_CHANCE" ] && O_CHANCE=${PREF_CHANCE}
+
+		fi
 
 		# Calculate the current commulative weight
 		let SUM_CHANCE+=${O_CHANCE}
@@ -215,6 +227,9 @@ echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
+
+# Check for overriden user preference file
+[ ! -f ${CONFIG_PREFERENCE} ] && CONFIG_PREFERENCE=""
 
 # Refresh cache
 curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
