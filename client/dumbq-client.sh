@@ -37,6 +37,28 @@ let SLOT_CPU=1
 let SLOT_MEM_KB=${MEMORY_KB}/${SLOT_CPU}
 let SLOT_SWAP_KB=${SWAP_KB}/${SLOT_CPU}
 
+# Validate the configuration file
+function is_config_invalid {
+
+	local NUM_PRJECTS=0
+	local CFG=""
+
+	# Iterate over the project configuration
+	while read CFG; do
+
+		# Skip comment lines
+		[ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
+
+		# That looks good
+		let NUM_PRJECTS++
+
+	done <${CONFIG_CACHE}
+
+	# It's valid only if num_projets is bigger than 0
+	[ ${NUM_PRJECTS} -le 0 ]
+
+}
+
 # Roll the dice and pick a container
 function pick_project {
 
@@ -160,11 +182,12 @@ function has_free_slot {
 
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
-[ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p DUMBQ_RUNDIR
+[ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
 
 # Refresh cache
 curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
 [ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
+is_config_invalid && echo "ERROR: Could not validate configuration information!" && exit 2
 
 # Main project loop
 while :; do
