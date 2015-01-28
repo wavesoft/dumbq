@@ -40,6 +40,20 @@ On the client side you have only the `dumbq-client.sh` script that should be run
 
 The script will remain alive and monitor the status of the containers and if a container goes down it will try to re-start it (or the next available).
 
+## Overriding chances
+
+If you want (from the user-side) to change the chances of each project to be selected, you can do so by creating the `/var/lib/dumbq/preference.conf` 
+
+## Securing the configuration
+
+If you want to be 100% sure that the configuration file is not tampered, you can use SSL and provide the public certificate of your server. Just modify the dumbq-client.sh and provide the required information in the configuration section:
+
+    CONFIG_SOURCE="https://myserver/dumbq.conf"
+    CONFIG_SSL_CERTS="/path/to/server_cert_path.pem"
+    CONFIG_SSL_CAPATH="/path/to/CA/list"
+
+The script will automatically supply the required information to CURL.
+
 # Requirements
 
 This script requires the following utilities to exist in the distribution:

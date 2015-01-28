@@ -18,15 +18,20 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-# Global configuration
-CONFIG_SOURCE=http://t4tc-mcplots-web.cern.ch/dumbq.conf
-CERNVM_FORK_BIN=/usr/bin/cernvm-fork
+##########################
+# GLOBAL CONFIGURATION
+# ========================
+CONFIG_SOURCE="http://t4tc-mcplots-web.cern.ch/dumbq.conf"
+CONFIG_SSL_CERTS=""
+CONFIG_SSL_CAPATH=""
+##########################
 
 # Local configuration
 DUMBQ_LIBDIR=/var/lib/dumbq
 DUMBQ_RUNDIR=${DUMBQ_LIBDIR}/run
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
+CERNVM_FORK_BIN=/usr/bin/cernvm-fork
 
 # Lookup some general metrics in the system
 CPU_COUNT=$(cat /proc/cpuinfo | grep -c processor)
@@ -243,7 +248,11 @@ else
 fi
 
 # Refresh cache
-curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
+if [ -z "${CONFIG_SSL_CERTS}" ]; then
+	curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
+else
+	curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
+fi
 [ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
 is_config_invalid && echo "ERROR: Could not validate configuration information!" && exit 2
 
