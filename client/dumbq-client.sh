@@ -53,7 +53,7 @@ function is_config_invalid {
 		[ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 0
 
 		# Make sure people do not attempt to escape from the cvmfs jail
-		[ $(echo "$CFG" | grep -c '\.\.') -ne 0 ] return 0
+		[ $(echo "$CFG" | grep -c '\.\.') -ne 0 ] && return 0
 
 		# That looks good
 		let NUM_PRJECTS++
@@ -145,6 +145,9 @@ function start_container {
 		--cvmfs=${P_REPOS} \
 		-o "lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K" \
 		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K"
+
+	# Mark as running
+	touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
 
 	# Wait for a sec
 	sleep 1
