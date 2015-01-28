@@ -103,9 +103,15 @@ function pick_project {
 
 			# Get preferred chance (use wildcard '*' for all projects if specified)
 			PREF_CHANCE=$(cat "${CONFIG_PREFERENCE}" | grep -E "(\*|${P_NAME}):" | sort | tail -n1 | awk -F':' '{ print $2 }')
-			
+
 			# If we have no value, keep it as-is
-			[ ! -z "$PREF_CHANCE" ] && O_CHANCE=${PREF_CHANCE}
+			if [ ! -z "$PREF_CHANCE" ]; then
+
+				# Change preference
+				echo "INFO: Overriding preference to ${PREF_CHANCE}% for project ${P_NAME}"
+				O_CHANCE=${PREF_CHANCE}
+
+			fi
 
 		fi
 
