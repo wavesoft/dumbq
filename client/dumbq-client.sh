@@ -234,7 +234,7 @@ function has_free_slot {
 echo "DumbQ Client v0.1 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
-echo "INFO: Allocating ${CPU_COUNT} slots, with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
+echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
 
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
