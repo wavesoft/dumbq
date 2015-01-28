@@ -74,9 +74,13 @@ function pick_project {
 	local P_OPTIONS=""
 	local P_SCRIPT=""
 	local O_CHANCE=""
-	local R_CHANCE=""
 	local P_NAME=""
 	local CFG=""
+
+	# Create a random number between 0 and 100
+	local SUM_CHANCE=0
+	local R_SCORE=$RANDOM
+	let R_SCORE%=100
 
 	# Iterate over the project configuration
 	while read CFG; do
@@ -93,6 +97,9 @@ function pick_project {
 		# Split options
 		O_CHANCE=$(echo "$P_OPTIONS" | awk -F',' '{print $1}')
 
+		# Calculate the current commulative weight
+		let SUM_CHANCE+=${O_CHANCE}
+
 		# ----------------------
 		
 		# Make sure we have a fail-over if nothing was checked
@@ -101,12 +108,8 @@ function pick_project {
 			BEST_CHANCE_VALUE=$O_CHANCE
 		fi
 
-		# Create a random number between 0 and 100
-		R_CHANCE=$RANDOM
-		let R_CHANCE%=100
-
 		# Check our chances
-		if [ $R_CHANCE -le $O_CHANCE ]; then
+		if [ $R_SCORE -le $SUM_CHANCE ]; then
 			echo $CFG
 			return
 		fi
