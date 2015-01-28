@@ -143,7 +143,7 @@ function start_container {
 	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
 	# Log
-	echo "INFO: Starting project '${RUN_NAME}'"
+	echo "INFO: Starting project '${P_NAME}'"
 
 	# Start container
 	${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f \
