@@ -238,7 +238,7 @@ echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 if [ ! -f ${CONFIG_PREFERENCE} ]; then
 	CONFIG_PREFERENCE=""
 else
-	echo "NOTE: Overriding project preference from ${CONFIG_PREFERENCE}"
+	echo "NOTE: Overriding project preference using ${CONFIG_PREFERENCE}"
 fi
 
 # Refresh cache
