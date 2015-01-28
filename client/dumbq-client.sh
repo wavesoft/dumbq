@@ -163,8 +163,11 @@ function has_free_slot {
 	# Get list of active containers
 	local ACTIVE_CONTAINERS=$(lxc-ls --active)
 
-	# Check if the containers we have are running
+	# Check if the containers we manage are running
 	for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
+
+		# Empty directory? Exit loop
+		[ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
 
 		# Get base name
 		RUN_NAME=$(basename ${RUN_FILE})
