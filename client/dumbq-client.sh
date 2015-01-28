@@ -143,6 +143,9 @@ function start_container {
 		-o "lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K" \
 		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K"
 
+	# Wait for a sec
+	sleep 1
+
 }
 
 # Check if there are free slots
