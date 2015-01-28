@@ -142,18 +142,21 @@ function start_container {
 	local CONTAINER_NAME="${P_NAME}-$(uuidgen)"
 	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
+	# Log
+	echo "INFO: Starting project '${RUN_NAME}'"
+
 	# Start container
 	${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f \
 		--run=${CONTAIENR_RUN} \
 		--cvmfs=${P_REPOS} \
 		-o "lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K" \
-		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K"
+		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K" > /dev/null
+
+	# Check for errors
+	[ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
 
 	# Mark as running
 	touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
-
-	# Wait for a sec
-	sleep 1
 
 }
 
@@ -178,8 +181,14 @@ function has_free_slot {
 		# Check if container is inactive
 		if [ $(echo "$ACTIVE_CONTAINERS" | grep -c "$RUN_NAME") -eq 0 ]; then
 
+			# Log
+			echo "INFO: Found inactive container '${RUN_NAME}'"
+
 			# Destroy inactive container
-			${CERNVM_FORK_BIN} ${RUN_NAME} -D
+			${CERNVM_FORK_BIN} ${RUN_NAME} -D > /dev/null
+			[ $? -ne 0 ] && echo "WARN: Unable to destroy the container!" && return
+
+			# Remove run flag
 			rm $RUN_FILE
 
 			# We have a free slot!
@@ -215,13 +224,16 @@ while :; do
 
 		# Start container
 		# (Blocking until completion)
+		echo "INFO: There is a free slot available"
 		start_container
+
+		# Wait for a while
+		sleep 1
 
 	else
 
-		# Sleep for some time before
-		# testing again
-		sleep 5
+		# Sleep for a while and test again
+		sleep 10
 
 	fi
 
