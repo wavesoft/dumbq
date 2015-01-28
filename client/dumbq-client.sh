@@ -52,6 +52,9 @@ function is_config_invalid {
 		# Check if we have a valid format in the line
 		[ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 0
 
+		# Make sure people do not attempt to escape from the cvmfs jail
+		[ $(echo "$CFG" | grep -c '\.\.') -ne 0 ] return 0
+
 		# That looks good
 		let NUM_PRJECTS++
 
