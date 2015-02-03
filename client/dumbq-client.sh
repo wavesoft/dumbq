@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# CernVM Environment Fork Utility 
+# DumbQ - A lightweight job scheduler
 # Copyright (C) 2014-2015  Ioannis Charalampidis, PH-SFT, CERN
 
 # This program is free software; you can redistribute it and/or
