@@ -21,7 +21,7 @@
 ##########################
 # GLOBAL CONFIGURATION
 # ========================
-CONFIG_SOURCE="http://t4tc-mcplots-web.cern.ch/dumbq.conf"
+CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/extern/experimental/dumbq/etc/challenge.conf"
 CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
 ##########################
@@ -247,13 +247,23 @@ else
 	echo "NOTE: Overriding project preference using ${CONFIG_PREFERENCE}"
 fi
 
-# Refresh cache
-if [ -z "${CONFIG_SSL_CERTS}" ]; then
-	curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
+# Check if the config source is from the web
+if [ $(echo "${CONFIG_SOURCE}" | grep -cE '^https?:|^ftp:') -eq 0 ]; then
+	# Check for missing file
+	[ ! -f ${CONFIG_SOURCE} ] && echo "ERROR: File ${CONFIG_SOURCE} was not found!" && exit 2
+	# Switch config cache to config file
+	CONFIG_CACHE=${CONFIG_SOURCE}
 else
-	curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
+	# Download configuration file
+	if [ -z "${CONFIG_SSL_CERTS}" ]; then
+		curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
+	else
+		curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
+	fi
+	[ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
 fi
-[ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
+
+# Validate config
 is_config_invalid && echo "ERROR: Could not validate configuration information!" && exit 2
 
 # Main project loop
