@@ -357,6 +357,7 @@ done
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
+[ ! -d ${DUMBQ_TTYDIR} ] && mkdir -p $DUMBQ_TTYDIR
 
 # Log system configuration (for debug purposes)
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
