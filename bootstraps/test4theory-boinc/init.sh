@@ -10,9 +10,7 @@ BOOTSTRAP_VER="8"
 JID_VER="-g"
 
 # Less important parameters
-GIT_DIR=$(mktemp -d)
-git clone https://github.com/wavesoft/dumbq.git $GIT_DIR
-DUMBQ_DIR="${GIT_DIR}"
+DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
 DUMBQ_LOGCAT="${DUMBQ_DIR}/client/dumbq-logcat"
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
