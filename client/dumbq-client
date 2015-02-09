@@ -76,6 +76,29 @@ function usage {
 	echo ""
 }
 
+# Read and echo environment parameters to pass
+# to the container. Each line should be in <key>=<value>
+# format.
+function read_env_config {
+	local CONTAINER_NAME=$1
+	local DISPLAY_NAME=$2
+	local CFG=""
+
+	# Pass container name
+	echo "NAME=${DISPLAY_NAME}"
+
+	# Pass configuration from /dev/fd0 (FloppyID)
+	while read CFG; do
+		[ $(echo "$CFG" | grep -c '=') -eq 1 ] && echo "$CFG"
+	done <<<$(/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl 2>/dev/null)
+
+	# Pass configuration from /var/lib/dumbq/user-data
+	if [ -f /var/lib/user-data ]; then
+		cat /var/lib/user-data | grep -E '^[^=]+=(.*)'
+	fi
+
+}
+
 # Validate the configuration file
 function is_config_invalid {
 
@@ -299,8 +322,13 @@ function start_container {
 		# Update index
 		update_mount_index
 		# Create mountpoint option for the linux container
-		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0'"
+		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none defaults,bind,user 0 0'"
 	fi
+
+	# Pass configuration environment variables
+	while read CFG; do
+		CMDLINE="${CMDLINE} -o 'lxc.environment = DUMBQ_${CFG}'"
+	done <<<$(read_env_config ${CONTAINER_NAME} ${P_NAME})
 
 	# Append bind shares
 	local DIR_HOST=""
@@ -313,7 +341,7 @@ function start_container {
 		# Remove heading slash from guest dir
 		DIR_GUEST=$(echo "$DIR_GUEST" | sed -r 's|^/?||')
 		# Create mountpoint option for the linux container
-		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none bind 0 0'"
+		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none defaults,bind 0 0'"
 	done
 
 	# Start container
