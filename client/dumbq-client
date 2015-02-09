@@ -174,14 +174,7 @@ function open_tty_console {
 	local EXPECT_ID=""
 	
 	# Check if there are ttys in use
-	for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* | sort); do
-
-		# Empty directory? Pick first tty
-		if [ "$TTY_FILE" == "${DUMBQ_TTYDIR}/*" ]; then
-			# [A] Use first available tty
-			TTY_ID=${BASE_TTY}
-			break
-		fi
+	for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
 
 		# Get the pid of the tty monitor
 		TTY_PID=$(cat ${TTY_FILE})
@@ -218,8 +211,15 @@ function open_tty_console {
 
 	done
 
+	# Empty directory? Pick first tty
+	if [ -z "$TTY_ID" ]; then
+		# [A] Use first available tty
+		TTY_ID=${BASE_TTY}
+		break
+	fi
+
 	# Check if we did not overflow
-	let MAX_TTY={$BASE_TTY}+${CPU_COUNT}-1
+	let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
 	if [ ${TTY_ID} -gt ${MAX_TTY} ]; then
 		echo "ERROR: There is no free tty for console ${CONTAINER_NAME}!"
 		return 1
