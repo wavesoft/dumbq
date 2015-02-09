@@ -21,10 +21,10 @@
 ##########################
 # GLOBAL CONFIGURATION
 # ========================
-CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/extern/experimental/dumbq/etc/challenge.conf"
+CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/server/default.conf"
 CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
-SHARED_MOUNT="/mnt/shared=/mnt/shared"
+SHARED_MOUNT=""
 BASE_TTY=0
 ##########################
 
