@@ -97,7 +97,7 @@ if [ -z "$AGENT_JABBER_ID" ]; then
 
   # BOINC Config
   BOINC_SERVER=https://lhcathome2.cern.ch
-  BOINC_PROJECT=test4theory
+  BOINC_PROJECT=vLHCathome
 
   # Count number of CPUS
   N_CPU=$(cat /proc/cpuinfo |grep processor|wc -l)

@@ -37,6 +37,7 @@ CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
 GUEST_SHARED_MOUNT=""
 HOST_SHARED_MOUNT=""
+BIND_MOUNT=""
 
 # Lookup some general metrics in the system
 CPU_COUNT=$(cat /proc/cpuinfo | grep -c processor)
@@ -57,7 +58,7 @@ function usage {
 	echo "Usage:"
 	echo ""
 	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>] [-p|--pref <source>]"
-	echo "              [-m|--share <guest_dir>=<host_dir>]"
+	echo "              [-S|--share <guest_dir>=<host_dir>] [-b|--bind <path>[=<host_path>]]"
 	echo ""
 	echo "Where:"
 	echo ""
@@ -67,9 +68,11 @@ function usage {
 	echo "               quotas. Default is ${CONFIG_PREFERENCE}"
 	echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
 	echo "               up to base_tty+cpu_count."
-	echo "  -m,--share   Share directory guest_dir (in the guest) with the directory"
+	echo "  -S,--share   Share directory guest_dir (in the guest) with the directory"
 	echo "               host_dir in the host. A unique subdirectory with the name of"
 	echo "               the container will be created inside <host_dir>"
+	echo "  -b,--bind    Blind bind of the given file/directory from host to guest. The"
+	echo "               path after '=' defaults to <path>."
 	echo ""
 }
 
@@ -280,28 +283,40 @@ function start_container {
 	local CONTAINER_NAME="${P_NAME}-$(uuidgen)"
 	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
+	# Prepare cernvm-fork cmdline
+	local CMDLINE="${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f"
+	CMDLINE="${CMDLINE} --run=${CONTAIENR_RUN}"
+	CMDLINE="${CMDLINE} --cvmfs=${P_REPOS}"
+	CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K'"
+	CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K'"
+
 	# Create shared mount if specified
 	local GUEST_MOUNT_OPT=""
 	if [ ! -z "$HOST_SHARED_MOUNT" ]; then
 		# Create mount dir
 		local HOST_MP=${HOST_SHARED_MOUNT}/${CONTAINER_NAME}
 		mkdir -m0777 -p ${HOST_MP}
-		# Create mountpoint option for the linux container
-		GUEST_MOUNT_OPT="lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0"		
 		# Update index
 		update_mount_index
+		# Create mountpoint option for the linux container
+		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0'"
 	fi
 
-	# Log
-	echo "INFO: Starting project '${P_NAME}'"
+	# Append bind shares
+	local DIR_HOST=""
+	local DIR_GUEST=""
+	for BIND_SHARE in ${BIND_MOUNT}; do
+		# Get host/guest paths
+		DIR_HOST=$(echo "$BIND_SHARE" | awk -F'=' '{print $1}')
+		DIR_GUEST=$(echo "$BIND_SHARE" | awk -F'=' '{print $2}')
+		[ -z "${DIR_GUEST}" ] && DIR_GUEST="${DIR_HOST}"
+		# Create mountpoint option for the linux container
+		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none bind 0 0'"
+	done
 
 	# Start container
-	${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f \
-		--run=${CONTAIENR_RUN} \
-		--cvmfs=${P_REPOS} \
-		-o "lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K" \
-		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K" \
-		-o "${GUEST_MOUNT_OPT}" > /dev/null
+	echo "INFO: Starting project '${P_NAME}'"
+	eval ${CMDLINE} >/dev/null
 
 	# Check for errors
 	[ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
@@ -374,7 +389,7 @@ echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 
 # Get options from command-line
-options=$(getopt -o t:s:m:p: -l tty:,source:,share:,pref: -- "$@")
+options=$(getopt -o t:s:S:p:b: -l tty:,source:,share:,pref:,bind: -- "$@")
 if [ $? -ne 0 ]; then
 	usage
 	exit 1
@@ -389,7 +404,8 @@ do
 		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
 		-p|--pref)			CONFIG_PREFERENCE=$2; shift 2;;
 		-t|--tty)			BASE_TTY=$2; shift 2;;
-		-m|--share)			SHARED_MOUNT=$2; shift 2
+		-b|--bind)			BIND_MOUNT="${BIND_MOUNT} $2"; shift 2;;
+		-S|--share)			SHARED_MOUNT=$2; shift 2
 							if [ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ]; then
 								echo "ERROR: Expecting 'a=b' format for the 'share' parameter!"
 								exit 1
