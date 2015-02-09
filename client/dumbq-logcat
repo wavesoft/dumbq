@@ -173,14 +173,17 @@ class TailList:
 					# Follow
 					try:
 
-						# Try to get a line
-						line = mon.queue.get(False)
+						# Drain queue (we will exit with the exception)
+						while True:
 
-						# Combine prefixes, line color and print
-						print tty_color(
-								"%s%s%s" % (self.prefix(os.path.basename(mon.filename)), mon.prefix, line), 
-								fore=mon.fore, back=mon.back, bold=mon.bold
-							)
+							# Try to get a line
+							line = mon.queue.get(False)
+
+							# Combine prefixes, line color and print
+							print tty_color(
+									"%s%s%s" % (self.prefix(os.path.basename(mon.filename)), mon.prefix, line), 
+									fore=mon.fore, back=mon.back, bold=mon.bold
+								)
 
 					except Queue.Empty:
 						# No new line, that's ok...
