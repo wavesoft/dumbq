@@ -129,7 +129,7 @@ cp /var/log/start-perl-copilot.log /var/www/html/logs
 (
   # Start logcat with all the interesting log files
   ${DUMBQ_LOGCAT} \
-    --prefix="[%d/%m/%y %H:%M:%S]" \
+    --prefix="[%d/%m/%y %H:%M:%S] " \
     /var/log/copilot-agent-start.out[cyan] \
     /var/log/copilot-agent-start.err[magenta] \
     /var/log/copilot-agent.log[cyan] \
