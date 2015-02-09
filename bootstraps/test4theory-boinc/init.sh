@@ -129,11 +129,12 @@ cp /var/log/start-perl-copilot.log /var/www/html/logs
 (
   # Start logcat with all the interesting log files
   ${DUMBQ_LOGCAT} \
+    --prefix="[%d/%m/%y %H:%M:%S]"
     /var/log/copilot-agent-start.out[cyan] \
     /var/log/copilot-agent-start.err[magenta] \
     /var/log/copilot-agent.log[cyan] \
     /tmp/agentWorkDir/out[green] \
-    /tmp/agentWorkDir/out[red]
+    /tmp/agentWorkDir/err[red]
 )&
 
 # 7) Start Co-Pilot from CVMFS
