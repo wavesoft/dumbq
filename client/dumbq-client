@@ -283,7 +283,7 @@ function start_container {
 	if [ ! -z "$HOST_SHARED_MOUNT" ]; then
 		# Create mount dir
 		local HOST_MP=${HOST_SHARED_MOUNT}/${CONTAINER_NAME}
-		mkdir -m=0777 -p ${HOST_MP}
+		mkdir -m0777 -p ${HOST_MP}
 		# Create mountpoint option for the linux container
 		GUEST_MOUNT_OPT="lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0"		
 		# Update index
