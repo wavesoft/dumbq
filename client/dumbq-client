@@ -347,7 +347,7 @@ function has_free_slot {
 
 			# Remove host shared mount directory
 			if [ -d ${HOST_SHARED_MOUNT}/${RUN_NAME} ]; then
-				rmdir ${HOST_SHARED_MOUNT}/${RUN_NAME}
+				rm -rf "${HOST_SHARED_MOUNT}/${RUN_NAME}"
 				update_mount_index
 			fi
 
