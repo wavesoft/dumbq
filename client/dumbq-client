@@ -24,6 +24,7 @@
 CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/extern/experimental/dumbq/etc/challenge.conf"
 CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
+SHARED_MOUNT="/mnt/shared=/mnt/shared"
 BASE_TTY=0
 ##########################
 
@@ -34,6 +35,8 @@ DUMBQ_TTYDIR=${DUMBQ_LIBDIR}/tty
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
+GUEST_SHARED_MOUNT=""
+HOST_SHARED_MOUNT=""
 
 # Lookup some general metrics in the system
 CPU_COUNT=$(cat /proc/cpuinfo | grep -c processor)
@@ -54,6 +57,7 @@ function usage {
 	echo "Usage:"
 	echo ""
 	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>]"
+	echo "              [-m|--share <guest_dir>=<host_dir>]"
 	echo ""
 	echo "Where:"
 	echo ""
@@ -61,6 +65,9 @@ function usage {
 	echo "               value is ${CONFIG_SOURCE}"
 	echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
 	echo "               up to base_tty+cpu_count."
+	echo "  -m,--share   Share directory guest_dir (in the guest) with the directory"
+	echo "               host_dir in the host. A unique subdirectory with the name of"
+	echo "               the container will be created inside <host_dir>"
 	echo ""
 }
 
@@ -260,6 +267,16 @@ function start_container {
 	local CONTAINER_NAME="${P_NAME}-$(uuidgen)"
 	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
+	# Create shared mount if specified
+	local GUEST_MOUNT_OPT=""
+	if [ ! -z "$HOST_SHARED_MOUNT" ]; then
+		# Create mount dir
+		local HOST_MP=${HOST_SHARED_MOUNT}/${CONTAINER_NAME}
+		mkdir -p ${HOST_MP}
+		# Create mountpoint option for the linux container
+		GUEST_MOUNT_OPT="lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none ro,bind,optional 0 0"		
+	fi
+
 	# Log
 	echo "INFO: Starting project '${P_NAME}'"
 
@@ -268,7 +285,8 @@ function start_container {
 		--run=${CONTAIENR_RUN} \
 		--cvmfs=${P_REPOS} \
 		-o "lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K" \
-		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K" > /dev/null
+		-o "lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K" \
+		-o "${GUEST_MOUNT_OPT}" > /dev/null
 
 	# Check for errors
 	[ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
@@ -314,6 +332,9 @@ function has_free_slot {
 			# Remove run flag
 			rm $RUN_FILE
 
+			# Remove host shared mount directory
+			[ -d ${HOST_SHARED_MOUNT}/${RUN_NAME} ] && rmdir ${HOST_SHARED_MOUNT}/${RUN_NAME}
+
 			# We have a free slot!
 			return 0
 
@@ -349,6 +370,11 @@ do
 		-h|--help)          usage && exit 0;;
 		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
 		-t|--tty)			BASE_TTY=$2; shift 2;;
+		-m|--share)			SHARED_MOUNT=$2; shift 2
+							[ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ] && \
+								echo "ERROR: Expecting 'a=b' format for the 'share' parameter!"
+								exit 1
+							;;
 		--)                 shift 1; break ;;
 		*)                  break ;;
 	esac
@@ -358,6 +384,13 @@ done
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
 [ ! -d ${DUMBQ_TTYDIR} ] && mkdir -p $DUMBQ_TTYDIR
+
+# Split SHARED_MOUNT to GUEST_SHARED_MOUNT and HOST_SHARED_MOUNT paths
+if [ ! -z "$SHARED_MOUNT" ]; then
+	HOST_SHARED_MOUNT=$(echo "$SHARED_MOUNT" | awk -F'=' '{print $2}')
+	# Remove heading slash from container mountpoint
+	GUEST_SHARED_MOUNT=$(echo "$SHARED_MOUNT" | awk -F'=' '{print $1}' | sed -r 's|^/?||')
+fi
 
 # Log system configuration (for debug purposes)
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
