@@ -371,9 +371,10 @@ do
 		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
 		-t|--tty)			BASE_TTY=$2; shift 2;;
 		-m|--share)			SHARED_MOUNT=$2; shift 2
-							[ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ] && \
+							if [ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ]; then
 								echo "ERROR: Expecting 'a=b' format for the 'share' parameter!"
 								exit 1
+							fi
 							;;
 		--)                 shift 1; break ;;
 		*)                  break ;;
