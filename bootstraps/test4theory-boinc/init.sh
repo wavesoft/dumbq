@@ -38,6 +38,23 @@ get_user_id()
   #fi
 }
 
+# 0) Redirect and start logcat 
+# ----------------------------------
+
+(
+  # Start logcat with all the interesting log files
+  ${DUMBQ_LOGCAT} \
+    --prefix="[%d/%m/%y %H:%M:%S] " \
+    /var/log/bootstrap-out.log[cyan] \
+    /var/log/bootstrap-err.log[magenta] \
+    /var/log/copilot-agent.log[cyan] \
+    /tmp/agentWorkDir/out[green] \
+    /tmp/agentWorkDir/err[red]
+)&
+
+# Redirect stdout/err
+exec 2>/var/log/bootstrap-err.log >/var/log/bootstrap-out.log
+
 # 1) Start required services
 # ----------------------------------
 
@@ -121,21 +138,7 @@ fi
 cp $BOINC_USER_ID_CACHE /var/www/html/logs
 cp /var/log/start-perl-copilot.log /var/www/html/logs
 
-# 6) Start multicolored log
-# ----------------------------------
-
-(
-  # Start logcat with all the interesting log files
-  ${DUMBQ_LOGCAT} \
-    --prefix="[%d/%m/%y %H:%M:%S] " \
-    /var/log/copilot-agent-start.out[cyan] \
-    /var/log/copilot-agent-start.err[magenta] \
-    /var/log/copilot-agent.log[cyan] \
-    /tmp/agentWorkDir/out[green] \
-    /tmp/agentWorkDir/err[red]
-)&
-
-# 7) Start Co-Pilot from CVMFS
+# 6) Start Co-Pilot from CVMFS
 # ----------------------------------
 
 # Create the ~/copilot-user-data file
@@ -143,5 +146,5 @@ cp /var/log/start-perl-copilot.log /var/www/html/logs
 
 # Select configuration and start co-pilot
 export COPILOT_CONFIG=/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/etc/copilot
-/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-agent 2>/var/log/copilot-agent-start.err 2>/var/log/copilot-agent-start.out
+/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-agent
 
