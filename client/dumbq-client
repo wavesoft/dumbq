@@ -327,7 +327,7 @@ function start_container {
 
 	# Pass configuration environment variables
 	while read CFG; do
-		CMDLINE="${CMDLINE} -o 'lxc.environment = DUMBQ_${CFG}'"
+		CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
 	done <<<$(read_env_config ${CONTAINER_NAME} ${P_NAME})
 
 	# Append bind shares
