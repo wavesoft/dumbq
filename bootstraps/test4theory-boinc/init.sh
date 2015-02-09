@@ -10,9 +10,12 @@ BOOTSTRAP_VER="8"
 JID_VER="-g"
 
 # Less important parameters
-BOOTSTRAP_DIR="/cvmfs/sft.cern.ch/lcg/external/dumbq/bootstraps/${BOOTSTRAP_NAME}"
+GIT_DIR=$(mktemp -d)
+git clone https://github.com/wavesoft/dumbq.git $GIT_DIR
+DUMBQ_DIR="${GIT_DIR}"
+BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
+DUMBQ_LOG_BIN="${DUMBQ_DIR}/bin/dumbq-log"
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
-DUMBQ_LOG_BIN="/cvmfs/sft.cern.ch/lcg/external/dumbq/bin/dumbq-log"
 
 #
 # Parses the USER_DATA value and retrieves the USER_ID.

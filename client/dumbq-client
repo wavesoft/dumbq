@@ -56,13 +56,15 @@ function usage {
 	echo ""
 	echo "Usage:"
 	echo ""
-	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>]"
+	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>] [-p|--pref <source>]"
 	echo "              [-m|--share <guest_dir>=<host_dir>]"
 	echo ""
 	echo "Where:"
 	echo ""
 	echo "  -s,--source  Specify the source configuration file to use. The default"
 	echo "               value is ${CONFIG_SOURCE}"
+	echo "  -p,--pref    Preference override configuration file that changes the project"
+	echo "               quotas. Default is ${CONFIG_PREFERENCE}"
 	echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
 	echo "               up to base_tty+cpu_count."
 	echo "  -m,--share   Share directory guest_dir (in the guest) with the directory"
@@ -372,7 +374,7 @@ echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 
 # Get options from command-line
-options=$(getopt -o t:s:m: -l tty:,source:,share: -- "$@")
+options=$(getopt -o t:s:m:p: -l tty:,source:,share:,pref: -- "$@")
 if [ $? -ne 0 ]; then
 	usage
 	exit 1
@@ -385,6 +387,7 @@ do
 	case "$1" in
 		-h|--help)          usage && exit 0;;
 		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
+		-p|--pref)			CONFIG_PREFERENCE=$2; shift 2;;
 		-t|--tty)			BASE_TTY=$2; shift 2;;
 		-m|--share)			SHARED_MOUNT=$2; shift 2
 							if [ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ]; then
