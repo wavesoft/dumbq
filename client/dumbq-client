@@ -212,10 +212,9 @@ function open_tty_console {
 	done
 
 	# Empty directory? Pick first tty
-	if [ -z "$TTY_ID" ]; then
+	if [ -z"$TTY_ID" ]; then
 		# [A] Use first available tty
 		TTY_ID=${BASE_TTY}
-		break
 	fi
 
 	# Check if we did not overflow
