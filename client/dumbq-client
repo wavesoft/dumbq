@@ -283,7 +283,7 @@ function start_container {
 	if [ ! -z "$HOST_SHARED_MOUNT" ]; then
 		# Create mount dir
 		local HOST_MP=${HOST_SHARED_MOUNT}/${CONTAINER_NAME}
-		mkdir -p ${HOST_MP}
+		mkdir -m=0777 -p ${HOST_MP}
 		# Create mountpoint option for the linux container
 		GUEST_MOUNT_OPT="lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0"		
 		# Update index
@@ -350,7 +350,7 @@ function has_free_slot {
 				rmdir ${HOST_SHARED_MOUNT}/${RUN_NAME}
 				update_mount_index
 			fi
-			
+
 			# We have a free slot!
 			return 0
 
