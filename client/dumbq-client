@@ -326,9 +326,10 @@ function start_container {
 	fi
 
 	# Pass configuration environment variables
-	while read CFG; do
-		CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
-	done <<<$(read_env_config ${CONTAINER_NAME} ${P_NAME})
+	read_env_config ${CONTAINER_NAME} ${P_NAME} | \
+		(while read CFG; do
+			CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
+		done)
 
 	# Append bind shares
 	local DIR_HOST=""
