@@ -310,6 +310,8 @@ function start_container {
 		DIR_HOST=$(echo "$BIND_SHARE" | awk -F'=' '{print $1}')
 		DIR_GUEST=$(echo "$BIND_SHARE" | awk -F'=' '{print $2}')
 		[ -z "${DIR_GUEST}" ] && DIR_GUEST="${DIR_HOST}"
+		# Remove heading slash from guest dir
+		DIR_GUEST=$(echo "$DIR_GUEST" | sed -r 's|^/?||')
 		# Create mountpoint option for the linux container
 		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none bind 0 0'"
 	done
