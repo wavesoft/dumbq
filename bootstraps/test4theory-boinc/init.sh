@@ -14,7 +14,7 @@ GIT_DIR=$(mktemp -d)
 git clone https://github.com/wavesoft/dumbq.git $GIT_DIR
 DUMBQ_DIR="${GIT_DIR}"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
-DUMBQ_LOG_BIN="${DUMBQ_DIR}/bin/dumbq-log"
+DUMBQ_LOG_BIN="${DUMBQ_DIR}/bin/dumbq-logcat"
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
 
 #
@@ -52,6 +52,10 @@ service cron start
 # Unzip the t4t-webapp
 T4T_WEBAPP_DST=/var/www/html
 /bin/tar zxvf $T4T_WEBAPP_TGZ -C $T4T_WEBAPP_DST > /dev/null 2>&1
+
+# Create missing directories
+mkdir ${T4T_WEBAPP_DST}/logs
+mkdir ${T4T_WEBAPP_DST}/job
 
 # 3) Install required binaries
 # ----------------------------------
