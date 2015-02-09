@@ -5,7 +5,7 @@
 #
 
 # Configuration parameters
-BOOTSTRAP_NAME="test4theory-boinc"
+BOOTSTRAP_NAME="test4theory-challenge"
 BOOTSTRAP_VER="8"
 JID_VER="-g"
 

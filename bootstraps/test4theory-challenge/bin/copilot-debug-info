@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Gather Co-Pilot data
+
+# Gather CVMFS debug information
+
+tmpdir=`mktemp -d -t cvmfs-bugreport.XXXXXX` || exit 1
+cd $tmpdir
+
+echo "Gathering /etc/cvmfs"
+mkdir -p etc
+cp -r /etc/cvmfs etc/
+
+[ -f /etc/cvmfs/default.conf ] && . /etc/cvmfs/default.conf
+[ -f /etc/cvmfs/default.local ] && . /etc/cvmfs/default.local
+
+for cmd in 'uname -a' 'hostname -f' 'ifconfig -a' 'cvmfs2 --version' \
+   'grep cvmfs2 /var/log/messages' 'grep cvmfs2 /var/log/syslog' \
+   "eval find ${CVMFS_CACHE_BASE} -maxdepth 1 -exec ls -lah \{\} \;" \
+   'mount' 'df -h' 'ps -ef ' \
+   'service cvmfs probe' 'service cvmfs status'  \
+   'cvmfs_config showconfig sft.cern.ch' 'cvmfs_config chksetup' 'cvmfs_config stat -v sft.cern.ch'
+do
+   out="`echo $cmd | tr -Cd [:alnum:]`.stdout"
+   err="`echo $cmd | tr -Cd [:alnum:]`.stderr"
+   echo "Gathering $cmd"
+   echo "$cmd" > $out
+   $cmd >> $out 2>$err
+done
+
+for file in *; do
+   echo
+   echo "-----------------------------------------------------"
+   echo "Begin $file"
+   echo "-----------------------------------------------------"
+   echo
+   [ -f $file ] && cat $file
+   echo
+   echo "-----------------------------------------------------"
+   echo "End $file"
+   echo "-----------------------------------------------------"
+   echo
+done
+
+tar cfz cvmfs-bugreport.tar.gz *
+#rm -rf etc *.stdout *.stderr
+
+cd -
+cp ${tmpdir}/cvmfs-bugreport.tar.gz .
+
+echo
+echo "System information has been collected in $PWD/cvmfs-bugreport.tar.gz"
