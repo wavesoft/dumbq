@@ -32,6 +32,7 @@ BASE_TTY=0
 DUMBQ_LIBDIR=/var/lib/dumbq
 DUMBQ_RUNDIR=${DUMBQ_LIBDIR}/run
 DUMBQ_TTYDIR=${DUMBQ_LIBDIR}/tty
+DUMBQ_ENV_CACHE=${DUMBQ_LIBDIR}/env.cache
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
@@ -80,12 +81,6 @@ function usage {
 # to the container. Each line should be in <key>=<value>
 # format.
 function read_env_config {
-	local CONTAINER_NAME=$1
-	local DISPLAY_NAME=$2
-	local CFG=""
-
-	# Pass container name
-	echo "NAME=${DISPLAY_NAME}"
 
 	# Pass configuration from /dev/fd0 (FloppyID)
 	if [ -f /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl ]; then
@@ -279,6 +274,8 @@ function open_tty_console {
 		echo $$ > $RUN_TTYFILE
 		# Start console on the free tty
 		openvt -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+		# Clear screen upon exit
+		clear
 		# Upon exit, close console
 		rm $RUN_TTYFILE
 	)&
@@ -303,7 +300,8 @@ function start_container {
 	let P_QUOTA_SWAP+=${P_QUOTA_MEM}
 
 	# Get a project name
-	local CONTAINER_NAME="${P_NAME}-$(uuidgen)"
+	local CONTAINER_UUID="$(uuidgen)"
+	local CONTAINER_NAME="${P_NAME}-${CONTAINER_UUID}"
 	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
 	# Prepare cernvm-fork cmdline
@@ -326,10 +324,13 @@ function start_container {
 	fi
 
 	# Pass configuration environment variables
-	read_env_config ${CONTAINER_NAME} ${P_NAME} | \
-		while read CFG; do
-			CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
-		done 
+	while read CFG; do
+		CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
+	done <${DUMBQ_ENV_CACHE}
+
+	# Append additional information
+	CMDLINE="${CMDLINE} -E 'DUMBQ_NAME=${P_NAME}'"
+	CMDLINE="${CMDLINE} -E 'DUMBQ_UUID=${CONTAINER_UUID}'"
 
 	# Append bind shares
 	local DIR_HOST=""
@@ -496,6 +497,10 @@ fi
 
 # Validate config
 is_config_invalid && echo "ERROR: Could not validate configuration information!" && exit 2
+
+# Read and cache environment parameters common
+# for all the containers
+read_env_config > ${DUMBQ_ENV_CACHE}
 
 # Main project loop
 while :; do
