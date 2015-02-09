@@ -225,6 +225,7 @@ function open_tty_console {
 	fi
 
 	# Start console daemon
+	echo "INFO: Reserving tty${TTY_ID} for ${CONTAINER_NAME}"
 	(
 		# Get the filename to monitor
 		RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
