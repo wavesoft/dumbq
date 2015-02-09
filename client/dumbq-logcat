@@ -71,6 +71,10 @@ class TailMonitor(threading.Thread):
 		self.bold = bold
 		self.prefix = prefix
 
+		# Defaults
+		if prefix == None:
+			self.prefix = ""
+
 		# Allocate new queue
 		self.queue = Queue.Queue(maxsize=10)
 

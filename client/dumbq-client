@@ -24,11 +24,13 @@
 CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/extern/experimental/dumbq/etc/challenge.conf"
 CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
+BASE_TTY=4
 ##########################
 
 # Local configuration
 DUMBQ_LIBDIR=/var/lib/dumbq
 DUMBQ_RUNDIR=${DUMBQ_LIBDIR}/run
+DUMBQ_TTYDIR=${DUMBQ_LIBDIR}/tty
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
@@ -38,7 +40,7 @@ CPU_COUNT=$(cat /proc/cpuinfo | grep -c processor)
 MEMORY_KB=$(free -k | grep 'Mem' | awk '{ print $2 }')
 SWAP_KB=$(free -k | grep 'Swap' | awk '{ print $2 }')
 
-# Calculate how much memory do we need per container
+# Calculate resources per slot
 let SLOT_CPU=1
 let SLOT_MEM_KB=${MEMORY_KB}/${SLOT_CPU}
 let SLOT_SWAP_KB=${SWAP_KB}/${SLOT_CPU}
@@ -144,6 +146,80 @@ function pick_project {
 
 }
 
+# Open a console for the given container on a free tty
+function open_tty_console {
+	local CONTAINER_NAME=$1
+
+	# Start collecting tty ID
+	local TTY_ID=""
+	local EXPECT_ID=""
+	
+	# Check if there are ttys in use
+	for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* | sort); do
+
+		# Empty directory? Pick first tty
+		if [ "$TTY_FILE" == "${DUMBQ_TTYDIR}/*" ]; then
+			# [A] Use first available tty
+			TTY_ID=${BASE_TTY}
+			break
+		fi
+
+		# Get the pid of the tty monitor
+		TTY_PID=$(cat ${TTY_FILE})
+
+		# Extract TTY ID from tty file name
+		TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+
+		# Check for jumps in ID
+		if [ ! -z "$EXPECT_ID" -a $TTY_ID -ne $EXPECT_ID ]; then
+			# [B] Found a gap
+			TTY_ID=${EXPECT_ID}
+			break
+		fi
+
+		# Check if this pid has died and reclaim slot
+		kill -0 ${TTY_PID} 2>/dev/null
+		if [ $? -ne 0 ]; then
+			# [C] Reuse free slot
+			rm $TTY_FILE
+			break
+		fi
+
+		# Increment tty number
+		let TTY_ID++
+
+		# Since we are sorting the tty flags, we 
+		# are expecting that the next file picked
+		# has the next ID in sequence. If not,
+		# there is a gap and we can use this gap
+		# for tty.
+		EXPECT_ID=${TTY_ID}
+
+		# [D] Pick next free slot
+
+	done
+
+	# Check if we did not overflow
+	let MAX_TTY={$BASE_TTY}+${CPU_COUNT}
+	if [ ${TTY_ID} -gt ${MAX_TTY} ]; then
+		echo "ERROR: There is no free tty for console ${CONTAINER_NAME}!"
+		return 1
+	fi
+
+	# Start console daemon
+	(
+		# Get the filename to monitor
+		RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
+		# Create runfile
+		echo $$ > $RUN_TTYFILE
+		# Start console on the free tty
+		openvt -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+		# Upon exit, close console
+		rm $RUN_TTYFILE
+	)&
+
+}
+
 # Internal logic to start a container
 function start_container {
 
@@ -180,6 +256,9 @@ function start_container {
 
 	# Mark as running
 	touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
+
+	# Start console on a free TTY
+	open_tty_console ${CONTAINER_NAME}
 
 }
 
@@ -231,7 +310,7 @@ function has_free_slot {
 }
 
 # Banner
-echo "DumbQ Client v0.1 - Ioannis Charalampidis, PH-SFT, CERN"
+echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
