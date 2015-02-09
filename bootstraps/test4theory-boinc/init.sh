@@ -14,7 +14,7 @@ GIT_DIR=$(mktemp -d)
 git clone https://github.com/wavesoft/dumbq.git $GIT_DIR
 DUMBQ_DIR="${GIT_DIR}"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
-DUMBQ_LOG_BIN="${DUMBQ_DIR}/bin/dumbq-logcat"
+DUMBQ_LOGCAT="${DUMBQ_DIR}/client/dumbq-logcat"
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
 
 #
@@ -126,11 +126,15 @@ cp /var/log/start-perl-copilot.log /var/www/html/logs
 # 6) Start multicolored log
 # ----------------------------------
 
-${DUMBQ_LOG_BIN} \
-  /var/log/start-perl-copilot.log[green] \
-  /var/log/messages[red] \
-  /var/log/copilot-config[red] \
-  > /dev/tty1
+(
+  # Start logcat with all the interesting log files
+  ${DUMBQ_LOGCAT} \
+    /var/log/copilot-agent-start.out[cyan] \
+    /var/log/copilot-agent-start.err[magenta] \
+    /var/log/copilot-agent.log[cyan] \
+    /tmp/agentWorkDir/out[green] \
+    /tmp/agentWorkDir/out[red]
+)&
 
 # 7) Start Co-Pilot from CVMFS
 # ----------------------------------
@@ -140,5 +144,5 @@ ${DUMBQ_LOG_BIN} \
 
 # Select configuration and start co-pilot
 export COPILOT_CONFIG=/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/etc/copilot
-/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-agent
+/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-agent 2>/var/log/copilot-agent-start.err 2>/var/log/copilot-agent-start.out
 
