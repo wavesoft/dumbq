@@ -99,6 +99,17 @@ function is_config_invalid {
 
 }
 
+# Update shared mountpoint index
+function update_mount_index {
+
+	# List files in the shared mountpoint
+	ls ${HOST_SHARED_MOUNT}/ | grep -v index > ${HOST_SHARED_MOUNT}/index
+
+	# Make sure everyone can read
+	chmod a+r ${HOST_SHARED_MOUNT}/index
+
+}
+
 # Roll the dice and pick a container
 function pick_project {
 
@@ -275,6 +286,8 @@ function start_container {
 		mkdir -p ${HOST_MP}
 		# Create mountpoint option for the linux container
 		GUEST_MOUNT_OPT="lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none bind,user,optional 0 0"		
+		# Update index
+		update_mount_index
 	fi
 
 	# Log
@@ -333,8 +346,11 @@ function has_free_slot {
 			rm $RUN_FILE
 
 			# Remove host shared mount directory
-			[ -d ${HOST_SHARED_MOUNT}/${RUN_NAME} ] && rmdir ${HOST_SHARED_MOUNT}/${RUN_NAME}
-
+			if [ -d ${HOST_SHARED_MOUNT}/${RUN_NAME} ]; then
+				rmdir ${HOST_SHARED_MOUNT}/${RUN_NAME}
+				update_mount_index
+			fi
+			
 			# We have a free slot!
 			return 0
 
