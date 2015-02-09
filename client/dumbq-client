@@ -24,7 +24,7 @@
 CONFIG_SOURCE="/cvmfs/sft.cern.ch/lcg/extern/experimental/dumbq/etc/challenge.conf"
 CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
-BASE_TTY=4
+BASE_TTY=0
 ##########################
 
 # Local configuration
@@ -44,6 +44,25 @@ SWAP_KB=$(free -k | grep 'Swap' | awk '{ print $2 }')
 let SLOT_CPU=1
 let SLOT_MEM_KB=${MEMORY_KB}/${SLOT_CPU}
 let SLOT_SWAP_KB=${SWAP_KB}/${SLOT_CPU}
+
+# Display usage
+function usage {
+	echo "DumbQ is a passive (dumb) scheduler for running jobs in the crowd."
+	echo "This means that it never talks back to the server and does not control"
+	echo "the running jobs. It just spawns them in isolated linux containers."
+	echo ""
+	echo "Usage:"
+	echo ""
+	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>]"
+	echo ""
+	echo "Where:"
+	echo ""
+	echo "  -s,--source  Specify the source configuration file to use. The default"
+	echo "               value is ${CONFIG_SOURCE}"
+	echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
+	echo "               up to base_tty+cpu_count."
+	echo ""
+}
 
 # Validate the configuration file
 function is_config_invalid {
@@ -258,7 +277,9 @@ function start_container {
 	touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
 
 	# Start console on a free TTY
-	open_tty_console ${CONTAINER_NAME}
+	if [ $BASE_TTY -gt 0 ]; then
+		open_tty_console ${CONTAINER_NAME}
+	fi
 
 }
 
@@ -312,12 +333,38 @@ function has_free_slot {
 # Banner
 echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
-echo "INFO: Using configuration from ${CONFIG_SOURCE}"
-echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
+
+# Get options from command-line
+options=$(getopt -o t:,s: -l tty:,source: -- "$@")
+if [ $? -ne 0 ]; then
+	usage
+	exit 1
+fi
+eval set -- "$options"
+
+# Process options
+while true
+do
+	case "$1" in
+		-h|--help)          usage && exit 0;;
+		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
+		-t|--tty)			BASE_TTY=$2; shift 2;;
+		--)                 shift 1; break ;;
+		*)                  break ;;
+	esac
+done
 
 # Make sure lib directory exists
 [ ! -d ${DUMBQ_LIBDIR} ] && mkdir -p $DUMBQ_LIBDIR
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
+
+# Log system configuration (for debug purposes)
+echo "INFO: Using configuration from ${CONFIG_SOURCE}"
+echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
+if [ $BASE_TTY -gt 0 ]; then
+	let MAX_TTY=${BASE_TTY}+${CPU_COUNT}
+	echo "INFO: Reserving tty{$BASE_TTY} to tty{$MAX_TTY} for containers."
+fi
 
 # Check for overriden user preference file
 if [ ! -f ${CONFIG_PREFERENCE} ]; then
