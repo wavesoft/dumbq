@@ -363,8 +363,12 @@ done
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
 if [ $BASE_TTY -gt 0 ]; then
-	let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-	echo "INFO: Reserving tty${BASE_TTY} to tty${MAX_TTY} for containers."
+	if [ $CPU_COUNT -eq 1 ]; then
+		echo "INFO: Reserving tty${BASE_TTY} for containers."
+	else
+		let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
+		echo "INFO: Reserving tty[${BASE_TTY}-tty${MAX_TTY}] for containers."
+	fi
 fi
 
 # Check for overriden user preference file
