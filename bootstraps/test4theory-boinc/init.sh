@@ -29,9 +29,9 @@ get_user_id()
     [ $? -eq 0 ] && USER_ID=${BASH_REMATCH[1]}
   fi
 
-  #if [ "$BOINC_USERID" != "$USER_ID" ]; then
+  #if [ "$DUMBQ_BOINC_ID" != "$USER_ID" ]; then
   #  echo "Error: BOINC User ID from the wrapper does not match."
-    echo "Got from wrapper: $BOINC_USERID"
+    echo "Got from wrapper: $DUMBQ_BOINC_ID"
     echo "Got from server: $USER_ID"
     echo "Server response: $USER_DATA"
     USER_ID="s-$USER_ID"
@@ -78,10 +78,8 @@ mkdir ${T4T_WEBAPP_DST}/job
 # Copy the config and debug info scripts to /usr/bin
 cp ${BOOTSTRAP_DIR}/bin/copilot-debug-info /usr/bin
 cp ${BOOTSTRAP_DIR}/bin/copilot-config /usr/bin
-cp ${BOOTSTRAP_DIR}/bin/readFloppy.pl /usr/bin
 chmod a+rx /usr/bin/copilot-debug-info
 chmod a+rx /usr/bin/copilot-config
-chmod a+rx /usr/bin/readFloppy.pl
 
 # 4) Cache and prepare Jabber ID
 # ----------------------------------
@@ -102,8 +100,8 @@ if [ -z "$AGENT_JABBER_ID" ]; then
   # Count number of CPUS
   N_CPU=$(cat /proc/cpuinfo |grep processor|wc -l)
 
-  # Read UserID from floppy
-  USER_ID=$(/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl | grep "^USER_ID" | awk -F'=' '{print $2}')
+  # Read UserID from DumbQ environment
+  USER_ID="${DUMBQ_USER_ID}"
 
   # If we have a USERID field (challenge mode), use the one provided
   if [ ! -z "${USER_ID}" ]; then
@@ -113,13 +111,9 @@ if [ -z "$AGENT_JABBER_ID" ]; then
 
   else
 
-    # Otherwise extract BOINC_AUTHENTICATOR and BOINC_USER_ID
-    BOINC_AUTHENTICATOR=$(/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl| grep BOINC_AUTHENTICATOR | awk '{split ($0, auth, "="); print auth[2]}')
-    BOINC_USERID=$(/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl| grep BOINC_USERID | awk '{split ($0, auth, "="); print auth[2]}')
-
     # If we have a BOINC authenticator, get USER_ID from there
-    if [ -n $BOINC_AUTHENTICATOR ]; then
-      USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$BOINC_AUTHENTICATOR -k -s)
+    if [ -n $DUMBQ_BOINC_AUTHENTICATOR ]; then
+      USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$DUMBQ_BOINC_AUTHENTICATOR -k -s)
     fi
     get_user_id
 
