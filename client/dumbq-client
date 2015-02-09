@@ -356,7 +356,7 @@ echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 
 # Get options from command-line
-options=$(getopt -o t:,s: -l tty:,source: -- "$@")
+options=$(getopt -o t:s:m: -l tty:,source:,share: -- "$@")
 if [ $? -ne 0 ]; then
 	usage
 	exit 1
