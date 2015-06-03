@@ -36,9 +36,10 @@ DUMBQ_ENV_CACHE=${DUMBQ_LIBDIR}/env.cache
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
-GUEST_SHARED_MOUNT=""
-HOST_SHARED_MOUNT=""
+GUEST_SHARED_MOUNT="/var/www"
+HOST_WEB_DIR="/var/www"
 BIND_MOUNT=""
+HOST_UUID=""
 
 # Lookup some general metrics in the system
 CPU_COUNT=$(cat /proc/cpuinfo | grep -c processor)
@@ -52,29 +53,52 @@ let SLOT_SWAP_KB=${SWAP_KB}/${SLOT_CPU}
 
 # Display usage
 function usage {
-	echo "DumbQ is a passive (dumb) scheduler for running jobs in the crowd."
-	echo "This means that it never talks back to the server and does not control"
-	echo "the running jobs. It just spawns them in isolated linux containers."
-	echo ""
-	echo "Usage:"
-	echo ""
-	echo " dumbq-client [-s|--source <source>] [-t|--tty <base_tty>] [-p|--pref <source>]"
-	echo "              [-S|--share <guest_dir>=<host_dir>] [-b|--bind <path>[=<host_path>]]"
-	echo ""
-	echo "Where:"
-	echo ""
-	echo "  -s,--source  Specify the source configuration file to use. The default"
-	echo "               value is ${CONFIG_SOURCE}"
-	echo "  -p,--pref    Preference override configuration file that changes the project"
-	echo "               quotas. Default is ${CONFIG_PREFERENCE}"
-	echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
-	echo "               up to base_tty+cpu_count."
-	echo "  -S,--share   Share directory guest_dir (in the guest) with the directory"
-	echo "               host_dir in the host. A unique subdirectory with the name of"
-	echo "               the container will be created inside <host_dir>"
-	echo "  -b,--bind    Blind bind of the given file/directory from host to guest. The"
-	echo "               path after '=' defaults to <path>."
-	echo ""
+    echo "DumbQ is a passive (dumb) scheduler for running jobs in the crowd."
+    echo "This means that it never talks back to the server and does not control"
+    echo "the running jobs. It just spawns them in isolated linux containers."
+    echo ""
+    echo "Usage:"
+    echo ""
+    echo " dumbq-client [-c|--config <config>] [-t|--tty <base_tty>] [-p|--pref <source>]"
+    echo "              [-S|--share <guest_dir>] [-w|--webdir <htdocs>] "
+    echo "              [-b|--bind <path>[=<host_path>]]"
+    echo ""
+    echo "Where:"
+    echo ""
+    echo "  -b,--bind    Shared bind of the given file/directory from host to guest. The"
+    echo "               path after '=' defaults to <path>."
+    echo "  -c,--config  Specify the source configuration file to use. The default"
+    echo "               value is ${CONFIG_SOURCE}"
+    echo "  -p,--pref    Preference override configuration file that changes the project"
+    echo "               quotas. Default is ${CONFIG_PREFERENCE}"
+    echo "  -S,--share   Expose the directory guest_dir from the guest on the web directory"
+    echo "               in order to expose project-specific information to the user."
+    echo "               Default is ${GUEST_SHARED_MOUNT}"
+    echo "  -t,--tty     Display container's tty on a real tty starting from base_tty"
+    echo "               up to base_tty+cpu_count."
+    echo "  -w,--webdir  The directory where to expose run-time invormation that can be"
+    echo "               served over a webserver in order to reach the end-user. The default"
+    echo "               value is ${HOST_WEB_DIR}"
+    echo ""
+}
+
+# Calculate, get or generate a unique ID that identifies
+# this machine ID and store it on HOST_UUID
+function update_host_uuid {
+
+    # Locate CERNVM_UUID if we are launched within CernVM
+    local CERNVM_UUID=$(cat /etc/cernvm/default.conf | grep CERNVM_UUID | awk -F'=' '{print $2}')
+    if [ ! -z "$CERNVM_UUID" ]; then
+        export HOST_UUID=$CERNVM_UUID
+        return
+    fi
+
+    # Not found? Use our own uinuqe ID
+    if [ ! -f '/var/lib/uuid' ]; then
+        uuidgen > /var/lib/uuid
+    fi
+    export HOST_UUID=$(cat /var/lib/uuid)
+
 }
 
 # Read and echo environment parameters to pass
@@ -82,337 +106,347 @@ function usage {
 # format.
 function read_env_config {
 
-	# Pass configuration from /dev/fd0 (FloppyID)
-	if [ -f /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl ]; then
-		/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl 2>/dev/null | grep -E '^[^=]+=(.*)'
-	fi
+    # Pass configuration from /dev/fd0 (FloppyID)
+    if [ -f /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl ]; then
+        /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/readFloppy.pl 2>/dev/null | grep -E '^[^=]+=(.*)'
+    fi
 
-	# Pass configuration from /var/lib/dumbq/user-data
-	if [ -f /var/lib/user-data ]; then
-		cat /var/lib/user-data | grep -E '^[^=]+=(.*)'
-	fi
+    # Pass configuration from /var/lib/dumbq/user-data
+    if [ -f /var/lib/user-data ]; then
+        cat /var/lib/user-data | grep -E '^[^=]+=(.*)'
+    fi
 
 }
 
 # Validate the configuration file
 function is_config_invalid {
 
-	local NUM_PRJECTS=0
-	local CFG=""
+    local NUM_PRJECTS=0
+    local CFG=""
 
-	# Iterate over the project configuration
-	while read CFG; do
+    # Iterate over the project configuration
+    while read CFG; do
 
-		# Skip comment lines
-		[ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
+        # Skip comment lines
+        [ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
 
-		# Check if we have a valid format in the line
-		[ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 0
+        # Check if we have a valid format in the line
+        [ $(echo "$CFG" | grep -cE '^[^:]+:[^:]+:[^:]*:.*$') -eq 0 ] && return 0
 
-		# Make sure people do not attempt to escape from the cvmfs jail
-		[ $(echo "$CFG" | grep -c '\.\.') -ne 0 ] && return 0
+        # Make sure people do not attempt to escape from the cvmfs jail
+        [ $(echo "$CFG" | grep -c '\.\.') -ne 0 ] && return 0
 
-		# That looks good
-		let NUM_PRJECTS++
+        # That looks good
+        let NUM_PRJECTS++
 
-	done <${CONFIG_CACHE}
+    done <${CONFIG_CACHE}
 
-	# It's valid only if num_projets is bigger than 0
-	[ ${NUM_PRJECTS} -le 0 ]
+    # It's valid only if num_projets is bigger than 0
+    [ ${NUM_PRJECTS} -le 0 ]
 
 }
 
-# Update shared mountpoint index
-function update_mount_index {
+# Update information index
+function update_index {
 
-	# List files in the shared mountpoint
-	ls ${HOST_SHARED_MOUNT}/ | grep -v index > ${HOST_SHARED_MOUNT}/index
+    # Create a JSON-Compatible list of instance mountpoints
+    MP_LIST=$(ls ${HOST_WEB_DIR}/inst-* 2>/dev/null | grep -v index | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
 
-	# Make sure everyone can read
-	chmod a+r ${HOST_SHARED_MOUNT}/index
+    # Update index file
+    cat <<EOF > ${HOST_WEB_DIR}/index.json
+{
+    "instances": [ ${MP_LIST} ],
+    "updated": $(date +%s),
+    "machine_uuid": ${HOST_UUID}
+}    
+EOF
+
+    # Make sure everyone can read
+    chmod 0111 ${HOST_WEB_DIR}/index.json
 
 }
 
 # Roll the dice and pick a container
 function pick_project {
 
-	# Project config with the biggest chances
-	local BEST_CHANCE_CONFIG=""
-	local BEST_CHANCE_VALUE=0
-	local P_OPTIONS=""
-	local P_SCRIPT=""
-	local O_CHANCE=""
-	local P_NAME=""
-	local CFG=""
+    # Project config with the biggest chances
+    local BEST_CHANCE_CONFIG=""
+    local BEST_CHANCE_VALUE=0
+    local P_OPTIONS=""
+    local P_SCRIPT=""
+    local O_CHANCE=""
+    local P_NAME=""
+    local CFG=""
 
-	# Create a random number between 0 and 100
-	local SUM_CHANCE=0
-	local R_SCORE=$RANDOM
-	let R_SCORE%=100
+    # Create a random number between 0 and 100
+    local SUM_CHANCE=0
+    local R_SCORE=$RANDOM
+    let R_SCORE%=100
 
-	# Iterate over the project configuration
-	while read CFG; do
+    # Iterate over the project configuration
+    while read CFG; do
 
-		# Skip comment lines
-		[ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
+        # Skip comment lines
+        [ $(echo "$CFG" | grep -cE '^[ \t]*#|^[ \t]*$') -ne 0 ] && continue
 
-		# ----------------------
+        # ----------------------
 
-		# Split parts
-		P_NAME=$(echo "$CFG" | awk -F':' '{print $1}')
-		P_OPTIONS=$(echo "$CFG" | awk -F':' '{print $2}')
+        # Split parts
+        P_NAME=$(echo "$CFG" | awk -F':' '{print $1}')
+        P_OPTIONS=$(echo "$CFG" | awk -F':' '{print $2}')
 
-		# Split options
-		O_CHANCE=$(echo "$P_OPTIONS" | awk -F',' '{print $1}')
+        # Split options
+        O_CHANCE=$(echo "$P_OPTIONS" | awk -F',' '{print $1}')
 
-		# Check for overriden chance to this project
-		if [ ! -z "${CONFIG_PREFERENCE}" -a -f "${CONFIG_PREFERENCE}" ]; then
+        # Check for overriden chance to this project
+        if [ ! -z "${CONFIG_PREFERENCE}" -a -f "${CONFIG_PREFERENCE}" ]; then
 
-			# Get preferred chance (use wildcard '*' for all projects if specified)
-			PREF_CHANCE=$(cat "${CONFIG_PREFERENCE}" | grep -E "(\*|${P_NAME}):" | sort | tail -n1 | awk -F':' '{ print $2 }')
+            # Get preferred chance (use wildcard '*' for all projects if specified)
+            PREF_CHANCE=$(cat "${CONFIG_PREFERENCE}" | grep -E "(\*|${P_NAME}):" | sort | tail -n1 | awk -F':' '{ print $2 }')
 
-			# If we have no value, keep it as-is
-			if [ ! -z "$PREF_CHANCE" ]; then
+            # If we have no value, keep it as-is
+            if [ ! -z "$PREF_CHANCE" ]; then
 
-				# Change preference
-				echo "NOTE: Overriding preference to ${PREF_CHANCE}% for project ${P_NAME}" >&2
-				O_CHANCE=${PREF_CHANCE}
+                # Change preference
+                echo "NOTE: Overriding preference to ${PREF_CHANCE}% for project ${P_NAME}" >&2
+                O_CHANCE=${PREF_CHANCE}
 
-			fi
+            fi
 
-		fi
+        fi
 
-		# Calculate the current commulative weight
-		let SUM_CHANCE+=${O_CHANCE}
+        # Calculate the current commulative weight
+        let SUM_CHANCE+=${O_CHANCE}
 
-		# ----------------------
-		
-		# Make sure we have a fail-over if nothing was checked
-		if [ $O_CHANCE -gt $BEST_CHANCE_VALUE ]; then
-			BEST_CHANCE_CONFIG="$CFG"
-			BEST_CHANCE_VALUE=$O_CHANCE
-		fi
+        # ----------------------
+        
+        # Make sure we have a fail-over if nothing was checked
+        if [ $O_CHANCE -gt $BEST_CHANCE_VALUE ]; then
+            BEST_CHANCE_CONFIG="$CFG"
+            BEST_CHANCE_VALUE=$O_CHANCE
+        fi
 
-		# Check our chances
-		if [ $R_SCORE -le $SUM_CHANCE ]; then
-			echo $CFG
-			return
-		fi
+        # Check our chances
+        if [ $R_SCORE -le $SUM_CHANCE ]; then
+            echo $CFG
+            return
+        fi
 
-	done <${CONFIG_CACHE}
+    done <${CONFIG_CACHE}
 
-	# Nothing found? Echo default
-	echo $BEST_CHANCE_CONFIG
+    # Nothing found? Echo default
+    echo $BEST_CHANCE_CONFIG
 
 }
 
 # Open a console for the given container on a free tty
 function open_tty_console {
-	local CONTAINER_NAME=$1
+    local CONTAINER_NAME=$1
 
-	# Start collecting tty ID
-	local TTY_ID=""
-	local EXPECT_ID=""
-	
-	# Check if there are ttys in use
-	for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
+    # Start collecting tty ID
+    local TTY_ID=""
+    local EXPECT_ID=""
+    
+    # Check if there are ttys in use
+    for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
 
-		# Get the pid of the tty monitor
-		TTY_PID=$(cat ${TTY_FILE})
+        # Get the pid of the tty monitor
+        TTY_PID=$(cat ${TTY_FILE})
 
-		# Extract TTY ID from tty file name
-		TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+        # Extract TTY ID from tty file name
+        TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
 
-		# Check for jumps in ID
-		if [ ! -z "$EXPECT_ID" -a $TTY_ID -ne $EXPECT_ID ]; then
-			# [B] Found a gap
-			TTY_ID=${EXPECT_ID}
-			break
-		fi
+        # Check for jumps in ID
+        if [ ! -z "$EXPECT_ID" -a $TTY_ID -ne $EXPECT_ID ]; then
+            # [B] Found a gap
+            TTY_ID=${EXPECT_ID}
+            break
+        fi
 
-		# Check if this pid has died and reclaim slot
-		kill -0 ${TTY_PID} 2>/dev/null
-		if [ $? -ne 0 ]; then
-			# [C] Reuse free slot
-			rm $TTY_FILE
-			break
-		fi
+        # Check if this pid has died and reclaim slot
+        kill -0 ${TTY_PID} 2>/dev/null
+        if [ $? -ne 0 ]; then
+            # [C] Reuse free slot
+            rm $TTY_FILE
+            break
+        fi
 
-		# Increment tty number
-		let TTY_ID++
+        # Increment tty number
+        let TTY_ID++
 
-		# Since we are sorting the tty flags, we 
-		# are expecting that the next file picked
-		# has the next ID in sequence. If not,
-		# there is a gap and we can use this gap
-		# for tty.
-		EXPECT_ID=${TTY_ID}
+        # Since we are sorting the tty flags, we 
+        # are expecting that the next file picked
+        # has the next ID in sequence. If not,
+        # there is a gap and we can use this gap
+        # for tty.
+        EXPECT_ID=${TTY_ID}
 
-		# [D] Pick next free slot
+        # [D] Pick next free slot
 
-	done
+    done
 
-	# Empty directory? Pick first tty
-	if [ -z"$TTY_ID" ]; then
-		# [A] Use first available tty
-		TTY_ID=${BASE_TTY}
-	fi
+    # Empty directory? Pick first tty
+    if [ -z"$TTY_ID" ]; then
+        # [A] Use first available tty
+        TTY_ID=${BASE_TTY}
+    fi
 
-	# Check if we did not overflow
-	let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-	if [ ${TTY_ID} -gt ${MAX_TTY} ]; then
-		echo "ERROR: There is no free tty for console ${CONTAINER_NAME}!"
-		return 1
-	fi
+    # Check if we did not overflow
+    let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
+    if [ ${TTY_ID} -gt ${MAX_TTY} ]; then
+        echo "ERROR: There is no free tty for console ${CONTAINER_NAME}!"
+        return 1
+    fi
 
-	# Start console daemon
-	echo "INFO: Reserving tty${TTY_ID} for ${CONTAINER_NAME}"
-	(
-		# Get the filename to monitor
-		RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
-		# Create runfile
-		echo $$ > $RUN_TTYFILE
-		# Start console on the free tty
-		openvt -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
-		# Clear screen upon exit
-		clear > /dev/tty${TTY_ID}
-		# Upon exit, close console
-		rm $RUN_TTYFILE
-	)&
+    # Start console daemon
+    echo "INFO: Reserving tty${TTY_ID} for ${CONTAINER_NAME}"
+    (
+        # Get the filename to monitor
+        RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
+        # Create runfile
+        echo $$ > $RUN_TTYFILE
+        # Start console on the free tty
+        openvt -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+        # Clear screen upon exit
+        clear > /dev/tty${TTY_ID}
+        # Upon exit, close console
+        rm $RUN_TTYFILE
+    )&
 
 }
 
 # Internal logic to start a container
 function start_container {
 
-	# Pick a project
-	local PROJECT_CFG=$(pick_project)
+    # Pick a project
+    local PROJECT_CFG=$(pick_project)
 
-	# Get name/script
-	local P_NAME=$(echo "$PROJECT_CFG" | awk -F':' '{ print $1 }')
-	local P_REPOS=$(echo "$PROJECT_CFG" | awk -F':' '{ print $3 }')
-	local P_SCRIPT=$(echo "$PROJECT_CFG" | awk -F':' '{ print $4 }')
+    # Get name/script
+    local P_NAME=$(echo "$PROJECT_CFG" | awk -F':' '{ print $1 }')
+    local P_REPOS=$(echo "$PROJECT_CFG" | awk -F':' '{ print $3 }')
+    local P_SCRIPT=$(echo "$PROJECT_CFG" | awk -F':' '{ print $4 }')
 
-	# Get quota
-	local P_QUOTA_MEM=${SLOT_MEM_KB}
-	local P_QUOTA_SWAP=${SLOT_SWAP_KB}
-	local P_QUOTA_CPU=${SLOT_CPU}
-	let P_QUOTA_SWAP+=${P_QUOTA_MEM}
+    # Get quota
+    local P_QUOTA_MEM=${SLOT_MEM_KB}
+    local P_QUOTA_SWAP=${SLOT_SWAP_KB}
+    local P_QUOTA_CPU=${SLOT_CPU}
+    let P_QUOTA_SWAP+=${P_QUOTA_MEM}
 
-	# Get a project name
-	local CONTAINER_UUID="$(uuidgen)"
-	local CONTAINER_NAME="${P_NAME}-${CONTAINER_UUID}"
-	local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
+    # Get a project name
+    local CONTAINER_UUID="$(uuidgen)"
+    local CONTAINER_NAME="${P_NAME}-${CONTAINER_UUID}"
+    local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
 
-	# Prepare cernvm-fork cmdline
-	local CMDLINE="${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f"
-	CMDLINE="${CMDLINE} --run=${CONTAIENR_RUN}"
-	CMDLINE="${CMDLINE} --cvmfs=${P_REPOS}"
-	CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K'"
-	CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K'"
+    # Prepare cernvm-fork cmdline
+    local CMDLINE="${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f"
+    CMDLINE="${CMDLINE} --run=${CONTAIENR_RUN}"
+    CMDLINE="${CMDLINE} --cvmfs=${P_REPOS}"
+    CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K'"
+    CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K'"
 
-	# Create shared mount if specified
-	local GUEST_MOUNT_OPT=""
-	if [ ! -z "$HOST_SHARED_MOUNT" ]; then
-		# Create mount dir
-		local HOST_MP=${HOST_SHARED_MOUNT}/${CONTAINER_NAME}
-		mkdir -m0777 -p ${HOST_MP}
-		# Update index
-		update_mount_index
-		# Create mountpoint option for the linux container
-		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none defaults,bind,user 0 0'"
-	fi
+    # Create shared mount if specified
+    local GUEST_MOUNT_OPT=""
+    if [ ! -z "$HOST_WEB_DIR" ]; then
+        # Create mount dir
+        local HOST_MP=${HOST_WEB_DIR}/inst-${CONTAINER_NAME}
+        mkdir -m0555 -p ${HOST_MP}
+        # Update index
+        update_index
+        # Create mountpoint option for the linux container
+        CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none defaults,bind,user 0 0'"
+    fi
 
-	# Pass configuration environment variables
-	while read CFG; do
-		CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
-	done <${DUMBQ_ENV_CACHE}
+    # Pass configuration environment variables
+    while read CFG; do
+        CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
+    done <${DUMBQ_ENV_CACHE}
 
-	# Append additional information
-	CMDLINE="${CMDLINE} -E 'DUMBQ_NAME=${P_NAME}'"
-	CMDLINE="${CMDLINE} -E 'DUMBQ_UUID=${CONTAINER_UUID}'"
+    # Append additional information
+    CMDLINE="${CMDLINE} -E 'DUMBQ_NAME=${P_NAME}'"
+    CMDLINE="${CMDLINE} -E 'DUMBQ_UUID=${CONTAINER_UUID}'"
+    CMDLINE="${CMDLINE} -E 'DUMBQ_VMID=${HOST_UUID}'"
 
-	# Append bind shares
-	local DIR_HOST=""
-	local DIR_GUEST=""
-	for BIND_SHARE in ${BIND_MOUNT}; do
-		# Get host/guest paths
-		DIR_HOST=$(echo "$BIND_SHARE" | awk -F'=' '{print $1}')
-		DIR_GUEST=$(echo "$BIND_SHARE" | awk -F'=' '{print $2}')
-		[ -z "${DIR_GUEST}" ] && DIR_GUEST="${DIR_HOST}"
-		# Remove heading slash from guest dir
-		DIR_GUEST=$(echo "$DIR_GUEST" | sed -r 's|^/?||')
-		# Create mountpoint option for the linux container
-		CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none defaults,bind 0 0'"
-	done
+    # Append bind shares
+    local DIR_HOST=""
+    local DIR_GUEST=""
+    for BIND_SHARE in ${BIND_MOUNT}; do
+        # Get host/guest paths
+        DIR_HOST=$(echo "$BIND_SHARE" | awk -F'=' '{print $1}')
+        DIR_GUEST=$(echo "$BIND_SHARE" | awk -F'=' '{print $2}')
+        [ -z "${DIR_GUEST}" ] && DIR_GUEST="${DIR_HOST}"
+        # Remove heading slash from guest dir
+        DIR_GUEST=$(echo "$DIR_GUEST" | sed -r 's|^/?||')
+        # Create mountpoint option for the linux container
+        CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${DIR_HOST} ${DIR_GUEST} none defaults,bind 0 0'"
+    done
 
-	# Start container
-	echo "INFO: Starting project '${P_NAME}'"
-	eval ${CMDLINE} >/dev/null
+    # Start container
+    echo "INFO: Starting project '${P_NAME}'"
+    eval ${CMDLINE} >/dev/null
 
-	# Check for errors
-	[ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
+    # Check for errors
+    [ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
 
-	# Mark as running
-	touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
+    # Mark as running
+    touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
 
-	# Start console on a free TTY
-	if [ $BASE_TTY -gt 0 ]; then
-		open_tty_console ${CONTAINER_NAME}
-	fi
+    # Start console on a free TTY
+    if [ $BASE_TTY -gt 0 ]; then
+        open_tty_console ${CONTAINER_NAME}
+    fi
 
 }
 
 # Check if there are free slots
 function has_free_slot {
-	local RUN_FILE=""
-	local RUN_NAME=""
-	local RUNNING_CONTAINERS=0
+    local RUN_FILE=""
+    local RUN_NAME=""
+    local RUNNING_CONTAINERS=0
 
-	# Get list of active containers
-	local ACTIVE_CONTAINERS=$(lxc-ls --active)
+    # Get list of active containers
+    local ACTIVE_CONTAINERS=$(lxc-ls --active)
 
-	# Check if the containers we manage are running
-	for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
+    # Check if the containers we manage are running
+    for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
 
-		# Empty directory? Exit loop
-		[ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
+        # Empty directory? Exit loop
+        [ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
 
-		# Get base name
-		RUN_NAME=$(basename ${RUN_FILE})
+        # Get base name
+        RUN_NAME=$(basename ${RUN_FILE})
 
-		# Check if container is inactive
-		if [ $(echo "$ACTIVE_CONTAINERS" | grep -c "$RUN_NAME") -eq 0 ]; then
+        # Check if container is inactive
+        if [ $(echo "$ACTIVE_CONTAINERS" | grep -c "$RUN_NAME") -eq 0 ]; then
 
-			# Log
-			echo "INFO: Found inactive container '${RUN_NAME}'"
+            # Log
+            echo "INFO: Found inactive container '${RUN_NAME}'"
 
-			# Destroy inactive container
-			${CERNVM_FORK_BIN} ${RUN_NAME} -D > /dev/null
-			[ $? -ne 0 ] && echo "WARN: Unable to destroy the container!" && return
+            # Destroy inactive container
+            ${CERNVM_FORK_BIN} ${RUN_NAME} -D > /dev/null
+            [ $? -ne 0 ] && echo "WARN: Unable to destroy the container!" && return
 
-			# Remove run flag
-			rm $RUN_FILE
+            # Remove run flag
+            rm $RUN_FILE
 
-			# Remove host shared mount directory
-			if [ -d ${HOST_SHARED_MOUNT}/${RUN_NAME} ]; then
-				rm -rf "${HOST_SHARED_MOUNT}/${RUN_NAME}"
-				update_mount_index
-			fi
+            # Remove host shared mount directory
+            if [ -d "${HOST_WEB_DIR}/inst-${RUN_NAME}" ]; then
+                rm -rf "${HOST_WEB_DIR}/inst-${RUN_NAME}"
+                update_index
+            fi
 
-			# We have a free slot!
-			return 0
+            # We have a free slot!
+            return 0
 
-		fi
+        fi
 
-		# Increment counter
-		let RUNNING_CONTAINERS++
+        # Increment counter
+        let RUNNING_CONTAINERS++
 
-	done
+    done
 
-	# Return positive response if the running containers
-	# are less than the free CPUs
-	[ ${RUNNING_CONTAINERS} -lt ${CPU_COUNT} ]
+    # Return positive response if the running containers
+    # are less than the free CPUs
+    [ ${RUNNING_CONTAINERS} -lt ${CPU_COUNT} ]
 
 }
 
@@ -421,31 +455,27 @@ echo "DumbQ Client v0.2 - Ioannis Charalampidis, PH-SFT, CERN"
 echo ""
 
 # Get options from command-line
-options=$(getopt -o t:s:S:p:b: -l tty:,source:,share:,pref:,bind: -- "$@")
+options=$(getopt -o t:c:S:p:b:w: -l tty:,config:,share:,pref:,bind:,webdir: -- "$@")
 if [ $? -ne 0 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 eval set -- "$options"
 
 # Process options
 while true
 do
-	case "$1" in
-		-h|--help)          usage && exit 0;;
-		-s|--source)        CONFIG_SOURCE=$2; shift 2;;
-		-p|--pref)			CONFIG_PREFERENCE=$2; shift 2;;
-		-t|--tty)			BASE_TTY=$2; shift 2;;
-		-b|--bind)			BIND_MOUNT="${BIND_MOUNT} $2"; shift 2;;
-		-S|--share)			SHARED_MOUNT=$2; shift 2
-							if [ $(echo "$SHARED_MOUNT" | grep -c '=') -eq 0 ]; then
-								echo "ERROR: Expecting 'a=b' format for the 'share' parameter!"
-								exit 1
-							fi
-							;;
-		--)                 shift 1; break ;;
-		*)                  break ;;
-	esac
+    case "$1" in
+        -h|--help)      usage && exit 0;;
+        -c|--config)    CONFIG_SOURCE=$2; shift 2;;
+        -p|--pref)      CONFIG_PREFERENCE=$2; shift 2;;
+        -t|--tty)       BASE_TTY=$2; shift 2;;
+        -b|--bind)      BIND_MOUNT="${BIND_MOUNT} $2"; shift 2;;
+        -S|--share)     GUEST_SHARED_MOUNT=$2; shift 2 ;;
+        -w|--webdir)    HOST_WEB_DIR=$2; shift 2;;
+        --)             shift 1; break ;;
+        *)              break ;;
+    esac
 done
 
 # Make sure lib directory exists
@@ -453,46 +483,39 @@ done
 [ ! -d ${DUMBQ_RUNDIR} ] && mkdir -p $DUMBQ_RUNDIR
 [ ! -d ${DUMBQ_TTYDIR} ] && mkdir -p $DUMBQ_TTYDIR
 
-# Split SHARED_MOUNT to GUEST_SHARED_MOUNT and HOST_SHARED_MOUNT paths
-if [ ! -z "$SHARED_MOUNT" ]; then
-	HOST_SHARED_MOUNT=$(echo "$SHARED_MOUNT" | awk -F'=' '{print $2}')
-	# Remove heading slash from container mountpoint
-	GUEST_SHARED_MOUNT=$(echo "$SHARED_MOUNT" | awk -F'=' '{print $1}' | sed -r 's|^/?||')
-fi
-
 # Log system configuration (for debug purposes)
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
 if [ $BASE_TTY -gt 0 ]; then
-	if [ $CPU_COUNT -eq 1 ]; then
-		echo "INFO: Reserving tty${BASE_TTY} for containers."
-	else
-		let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-		echo "INFO: Reserving tty[${BASE_TTY}-tty${MAX_TTY}] for containers."
-	fi
+    if [ $CPU_COUNT -eq 1 ]; then
+        echo "INFO: Reserving tty${BASE_TTY} for containers."
+    else
+        let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
+        echo "INFO: Reserving tty[${BASE_TTY}-tty${MAX_TTY}] for containers."
+    fi
 fi
 
 # Check for overriden user preference file
 if [ ! -f ${CONFIG_PREFERENCE} ]; then
-	CONFIG_PREFERENCE=""
+    CONFIG_PREFERENCE=""
 else
-	echo "NOTE: Overriding project preference using ${CONFIG_PREFERENCE}"
+    echo "NOTE: Overriding project preference using ${CONFIG_PREFERENCE}"
 fi
 
 # Check if the config source is from the web
 if [ $(echo "${CONFIG_SOURCE}" | grep -cE '^https?:|^ftp:') -eq 0 ]; then
-	# Check for missing file
-	[ ! -f ${CONFIG_SOURCE} ] && echo "ERROR: File ${CONFIG_SOURCE} was not found!" && exit 2
-	# Switch config cache to config file
-	CONFIG_CACHE=${CONFIG_SOURCE}
+    # Check for missing file
+    [ ! -f ${CONFIG_SOURCE} ] && echo "ERROR: File ${CONFIG_SOURCE} was not found!" && exit 2
+    # Switch config cache to config file
+    CONFIG_CACHE=${CONFIG_SOURCE}
 else
-	# Download configuration file
-	if [ -z "${CONFIG_SSL_CERTS}" ]; then
-		curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
-	else
-		curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
-	fi
-	[ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
+    # Download configuration file
+    if [ -z "${CONFIG_SSL_CERTS}" ]; then
+        curl -s -o "${CONFIG_CACHE}" "${CONFIG_SOURCE}"
+    else
+        curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
+    fi
+    [ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
 fi
 
 # Validate config
@@ -502,25 +525,44 @@ is_config_invalid && echo "ERROR: Could not validate configuration information!"
 # for all the containers
 read_env_config > ${DUMBQ_ENV_CACHE}
 
+# Generate and/or create host UUID
+update_host_uuid
+
+# Prepare host web directory
+if [ ! -z "$HOST_WEB_DIR" ]; then
+
+    # If directory is missing, create it
+    if [ ! -d "$HOST_WEB_DIR" ]; then
+        # Create host web directory
+        mkdir -p ${HOST_WEB_DIR}
+        # Make it world-readable
+        chmod 0555 ${HOST_WEB_DIR}
+    fi
+
+    # Update web index
+    update_index
+
+fi
+
 # Main project loop
 while :; do
 
-	# Do we have a free slot?
-	if has_free_slot; then
+    # Do we have a free slot?
+    if has_free_slot; then
 
-		# Start container
-		# (Blocking until completion)
-		echo "INFO: There is a free slot available"
-		start_container
+        # Start container
+        # (Blocking until completion)
+        echo "INFO: There is a free slot available"
+        start_container
 
-		# Wait for a while
-		sleep 1
+        # Wait for a while
+        sleep 1
 
-	else
+    else
 
-		# Sleep for a while and test again
-		sleep 10
+        # Sleep for a while and test again
+        sleep 10
 
-	fi
+    fi
 
 done
