@@ -36,8 +36,8 @@ DUMBQ_ENV_CACHE=${DUMBQ_LIBDIR}/env.cache
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
-GUEST_SHARED_MOUNT="/var/www"
-HOST_WEB_DIR="/var/www"
+GUEST_SHARED_MOUNT="/var/www/html"
+HOST_WEB_DIR="/var/www/html"
 BIND_MOUNT=""
 HOST_UUID=""
 
@@ -150,7 +150,7 @@ function is_config_invalid {
 function update_index {
 
     # Create a JSON-Compatible list of instance mountpoints
-    MP_LIST=$(ls ${HOST_WEB_DIR}/inst-* 2>/dev/null | grep -v index | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
+    MP_LIST=$(ls -d ${HOST_WEB_DIR}/inst-* 2>/dev/null | xargs -n1 basename | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
 
     # Update index file
     cat <<EOF > ${HOST_WEB_DIR}/index.json
