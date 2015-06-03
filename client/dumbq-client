@@ -150,7 +150,7 @@ function is_config_invalid {
 function update_index {
 
     # Create a JSON-Compatible list of instance mountpoints
-    MP_LIST=$(ls -d ${HOST_WEB_DIR}/inst-* 2>/dev/null | xargs -n1 basename | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
+    MP_LIST=$(ls -d ${HOST_WEB_DIR}/inst-* 2>/dev/null | xargs -n1 basename 2>/dev/null | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
 
     # Update index file
     cat <<EOF > ${HOST_WEB_DIR}/index.json

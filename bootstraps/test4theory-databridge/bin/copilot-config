@@ -10,7 +10,7 @@ exit unless defined $option;
 
 switch ($option) {
         case /--html-dir/ {
-                print "/var/www/html/job/";
+                print "/var/www/html/";
                 exit 0;
         }
         case /--stdout-file/ {
@@ -32,6 +32,8 @@ switch ($option) {
                 }
                 system ("cat $file");
                 print "\nAGENT_JABBER_ID=".$ENV{'AGENT_JABBER_ID'}."\n" if defined $ENV{'AGENT_JABBER_ID'};
+                print "\nDUMBQ_VMID=".$ENV{'DUMBQ_VMID'}."\n" if defined $ENV{'DUMBQ_VMID'};
+                print "\nDUMBQ_UUID=".$ENV{'DUMBQ_UUID'}."\n" if defined $ENV{'DUMBQ_UUID'};
 
                 exit 0;
         }
