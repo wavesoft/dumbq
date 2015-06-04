@@ -26,8 +26,8 @@ T4T_WEBAPP_LOGDIR=${T4T_WEBAPP_DST}/logs
 # ----------------------------------
 
 # Create missing directories
-mkdir ${T4T_WEBAPP_DST}/logs
-mkdir ${T4T_WEBAPP_DST}/job
+mkdir -p ${T4T_WEBAPP_DST}/logs
+mkdir -p ${T4T_WEBAPP_DST}/job
 
 (
   # Start logcat with all the interesting log files
@@ -62,4 +62,4 @@ chmod a+rx /usr/bin/copilot-config
 # ----------------------------------
 
 # Start databridge agent
-${DATABRIDGE_AGENT_BIN} "4c2ce9458a4750eafd589c9b4269fc2b" "35331_a8500540f00ed8c39253a808a7f53ba4" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
+${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
