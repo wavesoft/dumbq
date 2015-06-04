@@ -15,6 +15,17 @@ SWAPFILE="/mnt/.rw/swapfile"
 WWW_ROOT="/var/www/html"
 
 ######################################
+# Multiple executions guard
+######################################
+
+PIDFILE="/var/run/dumbq-agent-init.pid"
+if [ -f "$PIDFILE" ] && kill -0 `cat $PIDFILE` 2>/dev/null; then
+    echo "ERROR: Another instance of the init script is already running!"
+    exit 1
+fi  
+echo $$ > $PIDFILE
+
+######################################
 # 1) TTYs
 ######################################
 
@@ -22,7 +33,7 @@ WWW_ROOT="/var/www/html"
 if [ ! -f /etc/init/start-ttys.override ]; then
 
 	# Change the ACTIVE_CONSOLES line
-	cat /etc/init/start-ttys.conf | sed -r 's%(ACTIVE_CONSOLES=/dev/tty)(.*)%\1[1-2]%' > cat /etc/init/start-ttys.override
+	cat /etc/init/start-ttys.conf | sed -r 's%(ACTIVE_CONSOLES=/dev/tty)(.*)%\1[1-2]%' > /etc/init/start-ttys.override
 
 	# We need a reboot for changes to take effect
 	echo "WARNING: Rebooting in order to apply changes"
