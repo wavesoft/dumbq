@@ -19,7 +19,7 @@ DATABRIDGE_BASE_URL="https://t4t-data-bridge.cern.ch"
 
 # Test4Theory WebApp
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
-T4T_WEBAPP_DST=/var/www/html
+T4T_WEBAPP_DST="/var/www/html"
 T4T_WEBAPP_LOGDIR=${T4T_WEBAPP_DST}/logs
 
 # 0) Redirect and start logcat 
@@ -62,4 +62,4 @@ chmod a+rx /usr/bin/copilot-config
 # ----------------------------------
 
 # Start databridge agent
-${DATABRIDGE_AGENT_BIN} "challengeuser" "ch@ll3ng3" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
+${DATABRIDGE_AGENT_BIN} "4c2ce9458a4750eafd589c9b4269fc2b" "35331_a8500540f00ed8c39253a808a7f53ba4" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
