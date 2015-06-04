@@ -1,0 +1,40 @@
+#!/usr/bin/perl -w
+
+use Switch;
+
+my $option = shift;
+
+exit unless defined $option;
+
+
+
+switch ($option) {
+        case /--html-dir/ {
+                print "/var/www/html/job";
+                exit 0;
+        }
+        case /--stdout-file/ {
+                print "/var/www/html/logs/job.out";
+                exit 0;
+        }
+        case /--stderr-file/ {
+                print "/var/www/html/logs/job.err";
+                exit 0;
+        }
+        case /--print-logs/ {
+                system ("/usr/bin/copilot-debug-info");
+                exit 0;
+        }
+        case /--user-data/ {
+                my $file = "~/copilot-boinc-data";
+                unless (-f $file) {
+                        (system ("/usr/bin/readFloppy.pl > $file") == 0) or (system ("rm -rf $file"));
+                }
+                system ("cat $file");
+                print "\nAGENT_JABBER_ID=".$ENV{'AGENT_JABBER_ID'}."\n" if defined $ENV{'AGENT_JABBER_ID'};
+                print "\nDUMBQ_VMID=".$ENV{'DUMBQ_VMID'}."\n" if defined $ENV{'DUMBQ_VMID'};
+                print "\nDUMBQ_UUID=".$ENV{'DUMBQ_UUID'}."\n" if defined $ENV{'DUMBQ_UUID'};
+
+                exit 0;
+        }
+}
