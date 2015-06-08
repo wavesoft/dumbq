@@ -148,8 +148,11 @@ function is_config_invalid {
 
 # Update information index
 function update_index {
-    local INSTANCES=""
-    local CONFIG=""
+    local NUM_INST=0
+    local INDEX_FILE=${HOST_WEB_DIR}/index.json
+
+    # Prepare index file
+    echo -e "{\n    \"instances\": [" > ${INDEX_FILE}
 
     # List all the flags in RUN_DIR
     for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
@@ -158,23 +161,21 @@ function update_index {
         [ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
 
         # Include project details
-        [ ! -z "${INSTANCES}" ] && INSTANCES="${INSTANCES}, "
-        CONFIG=$(cat $RUN_FILE)
-        INSTANCES="${INSTANCES}${CONFIG}"
+        [ ${NUM_INST} -gt 0 ] && echo -n ", " >> ${INDEX_FILE}
+        cat $RUN_FILE >> ${INDEX_FILE}
 
     done
 
-    # Update index file
-    cat <<EOF > ${HOST_WEB_DIR}/index.json
-{
-    "instances": [ ${INSTANCES} ],
+    # Complete index file
+    cat <<EOF >> ${INDEX_FILE}
+ ],
     "updated": $(date +%s),
     "machine_uuid": ${HOST_UUID}
 }    
 EOF
 
     # Make sure everyone can read
-    chmod 0644 ${HOST_WEB_DIR}/index.json
+    chmod 0644 ${INDEX_FILE}
 
 }
 
