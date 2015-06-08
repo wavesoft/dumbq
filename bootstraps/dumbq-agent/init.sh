@@ -6,7 +6,7 @@
 
 # DumbQ location on cvmfs
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
-DUMBQ_AGENT_BIN="${DUMBQ_DIR}/client/dumbq-agent"
+DUMBQ_AGENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
 
 # Where to put the swapfile
 SWAPFILE="/mnt/.rw/swapfile"

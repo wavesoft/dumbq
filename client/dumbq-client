@@ -166,6 +166,42 @@ EOF
 
 }
 
+# Remove forks and their traces from containers that
+# are not running any more
+function cleanup_stale_forks {
+    local INST_MP=""
+    local INST_FLAG=""
+    local CHANGED=0
+
+    # Get list of active containers
+    local STALE_CONTAINERS=$(comm -2 <(lxc-ls 2>/dev/null | sort) <(lxc-ls --active >/dev/null | sort))
+    local DUMBQ_STALE_CONTAINERS=$(comm -12 <(ls ${DUMBQ_RUNDIR} | sort) <(echo $STALE_CONTAINERS))
+
+    # Remove all DUMBQ stale containers
+    for CONTAINER_NAME in $DUMBQ_STALE_CONTAINERS; do
+        echo "INFO: Cleaning-up stale container ${CONTAINER_NAME}"
+
+        # Destroy fork
+        ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -D
+
+        # Remove container run flag
+        INST_FLAG="${DUMBQ_RUNDIR}/${CONTAINER_NAME}"
+        [ -f ${INST_FLAG} ] && rm ${INST_FLAG}
+
+        # Remove container mountpoint
+        INST_MP="${HOST_WEB_DIR}/inst-${CONTAINER_NAME}"
+        [ -d ${INST_MP} ] && rm -rf ${INST_MP}
+
+        # We changed something
+        CHANGED=1
+
+    done
+
+    # If changed, update index
+    [ $CHANGED -eq 1 ] && update_index
+
+}
+
 # Roll the dice and pick a container
 function pick_project {
 
@@ -527,6 +563,10 @@ read_env_config > ${DUMBQ_ENV_CACHE}
 
 # Generate and/or create host UUID
 update_host_uuid
+
+# Clean-up stale containers that were there possibly 
+# from a previous boot
+cleanup_stale_forks
 
 # Prepare host web directory
 if [ ! -z "$HOST_WEB_DIR" ]; then
