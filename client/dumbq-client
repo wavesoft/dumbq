@@ -152,7 +152,7 @@ function update_index {
     local INDEX_FILE=${HOST_WEB_DIR}/index.json
 
     # Prepare index file
-    echo -e "{\n    \"instances\": [" > ${INDEX_FILE}
+    echo -en "{\n    \"instances\": [" > ${INDEX_FILE}
 
     # List all the flags in RUN_DIR
     for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
@@ -402,8 +402,6 @@ function start_container {
         # Create mount dir
         local HOST_MP=${HOST_WEB_DIR}/inst-${CONTAINER_NAME}
         mkdir -m0555 -p ${HOST_MP}
-        # Update index
-        update_index
         # Create mountpoint option for the linux container
         CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none defaults,bind,user 0 0'"
     fi
@@ -441,6 +439,9 @@ function start_container {
 
     # Store details in run-flag
     echo "{\"uuid\": \"${CONTAINER_UUID}\", \"wwwroot\": \"/inst-${CONTAINER_NAME}\", \"project\":\"${P_NAME}\", \"memory\": ${P_QUOTA_MEM}, \"swap\": ${P_QUOTA_SWAP}, \"cpus\": ${P_QUOTA_CPU} }" > ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
+
+    # Update index (requires run file)
+    [ ! -z "$HOST_WEB_DIR" ] && update_index
 
     # Start console on a free TTY
     if [ $BASE_TTY -gt 0 ]; then
