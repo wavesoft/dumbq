@@ -149,6 +149,7 @@ function is_config_invalid {
 # Update information index
 function update_index {
     local INSTANCES=""
+    local CONFIG=""
 
     # List all the flags in RUN_DIR
     for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
@@ -158,7 +159,8 @@ function update_index {
 
         # Include project details
         [ ! -z "${INSTANCES}" ] && INSTANCES="${INSTANCES}, "
-        INSTANCES="${INSTANCES}"$(cat $RUN_FILE)
+        CONFIG=$(cat $RUN_FILE)
+        INSTANCES="${INSTANCES}${CONFIG}"
 
     done
 
