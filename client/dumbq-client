@@ -36,7 +36,7 @@ DUMBQ_ENV_CACHE=${DUMBQ_LIBDIR}/env.cache
 CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
 CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
 CERNVM_FORK_BIN=/usr/bin/cernvm-fork
-GUEST_SHARED_MOUNT="/var/www/html"
+GUEST_SHARED_MOUNT="var/www/html"
 HOST_WEB_DIR="/var/www/html"
 BIND_MOUNT=""
 HOST_UUID=""
@@ -162,7 +162,7 @@ function update_index {
 EOF
 
     # Make sure everyone can read
-    chmod 0111 ${HOST_WEB_DIR}/index.json
+    chmod 0644 ${HOST_WEB_DIR}/index.json
 
 }
 

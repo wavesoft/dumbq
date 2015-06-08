@@ -148,6 +148,11 @@ cat <<EOF > ${WWW_ROOT}/machine.json
 }
 EOF
 
+# Create a blank index.json
+cat <<EOF > ${WWW_ROOT}/index.json
+{}
+EOF
+
 # Start apache if not started
 service httpd start
 
