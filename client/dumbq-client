@@ -160,7 +160,7 @@ function update_index {
         [ ! -z "${INSTANCES}" ] && INSTANCES="${INSTANCES}, "
         INSTANCES="${INSTANCES}$(cat $RUN_FILE)"
 
-    fi
+    done
 
     # Update index file
     cat <<EOF > ${HOST_WEB_DIR}/index.json
