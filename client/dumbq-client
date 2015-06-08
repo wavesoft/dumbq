@@ -175,7 +175,7 @@ function cleanup_stale_forks {
 
     # Get list of active containers
     local STALE_CONTAINERS=$(comm -2 <(lxc-ls 2>/dev/null | sort) <(lxc-ls --active >/dev/null | sort))
-    local DUMBQ_STALE_CONTAINERS=$(comm -12 <(ls ${DUMBQ_RUNDIR} | sort) <(echo $STALE_CONTAINERS))
+    local DUMBQ_STALE_CONTAINERS=$(comm -12 <(ls ${DUMBQ_RUNDIR} 2>/dev/null | sort) <(echo "$STALE_CONTAINERS"))
 
     # Remove all DUMBQ stale containers
     for CONTAINER_NAME in $DUMBQ_STALE_CONTAINERS; do
