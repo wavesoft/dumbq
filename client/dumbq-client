@@ -173,12 +173,15 @@ function cleanup_stale_forks {
     local INST_FLAG=""
     local CHANGED=0
 
-    # Get list of active containers
-    local STALE_CONTAINERS=$(comm -2 <(lxc-ls 2>/dev/null | sort) <(lxc-ls --active >/dev/null | sort))
-    local DUMBQ_STALE_CONTAINERS=$(comm -12 <(ls ${DUMBQ_RUNDIR} 2>/dev/null | sort) <(echo "$STALE_CONTAINERS"))
+    # Find which containers exist in rundir and
+    # are not running.
+    local DUMBQ_CONTAINERS=$(ls ${DUMBQ_RUNDIR} 2>/dev/null | sort)
+    local INACTIVE_CONTAINERS=$(comm -2 <(lxc-ls 2>/dev/null | sort) <(lxc-ls --active >/dev/null | sort))
+    local DUMBQ_INACTIVE_CONTAINERS=""
+    [ ! -z "$DUMBQ_CONTAINERS" -a ! -z "$INACTIVE_CONTAINERS" ] && DUMBQ_INACTIVE_CONTAINERS=$(comm -12 <(echo "$DUMBQ_CONTAINERS") <(echo "$INACTIVE_CONTAINERS"))
 
     # Remove all DUMBQ stale containers
-    for CONTAINER_NAME in $DUMBQ_STALE_CONTAINERS; do
+    for CONTAINER_NAME in $DUMBQ_INACTIVE_CONTAINERS; do
         echo "INFO: Cleaning-up stale container ${CONTAINER_NAME}"
 
         # Destroy fork
