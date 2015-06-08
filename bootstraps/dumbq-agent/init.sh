@@ -164,7 +164,8 @@ service httpd start
 while true; do
 	
 	# Start agent
-	${DUMBQ_AGENT_BIN} --tty 3 2>${WWW_LOGS}/dumbq-agent.log >${WWW_LOGS}/dumbq-agent.log
+	echo "" > ${WWW_LOGS}/dumbq-agent.log
+	${DUMBQ_AGENT_BIN} --tty 3 2>>${WWW_LOGS}/dumbq-agent.log >>${WWW_LOGS}/dumbq-agent.log
 
 	# If for any reason it failed, re-start in 60 seconds
 	sleep 60
