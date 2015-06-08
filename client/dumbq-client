@@ -158,7 +158,7 @@ function update_index {
 
         # Include project details
         [ ! -z "${INSTANCES}" ] && INSTANCES="${INSTANCES}, "
-        INSTANCES="${INSTANCES}$(cat $RUN_FILE)"
+        INSTANCES="${INSTANCES}"$(cat $RUN_FILE)
 
     done
 
