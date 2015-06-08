@@ -148,14 +148,24 @@ function is_config_invalid {
 
 # Update information index
 function update_index {
+    local INSTANCES=""
 
-    # Create a JSON-Compatible list of instance mountpoints
-    MP_LIST=$(ls -d ${HOST_WEB_DIR}/inst-* 2>/dev/null | xargs -n1 basename 2>/dev/null | sed -E 's/(.*)/"\1",/' | tr '\n' ' ' | sed 's/, $//')
+    # List all the flags in RUN_DIR
+    for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
+
+        # Empty directory? Exit loop
+        [ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
+
+        # Include project details
+        [ ! -z "${INSTANCES}" ] && INSTANCES="${INSTANCES}, "
+        INSTANCES="${INSTANCES}$(cat $RUN_FILE)"
+
+    fi
 
     # Update index file
     cat <<EOF > ${HOST_WEB_DIR}/index.json
 {
-    "instances": [ ${MP_LIST} ],
+    "instances": [ ${INSTANCES} ],
     "updated": $(date +%s),
     "machine_uuid": ${HOST_UUID}
 }    
@@ -426,8 +436,8 @@ function start_container {
     # Check for errors
     [ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
 
-    # Mark as running
-    touch ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
+    # Store details in run-flag
+    echo "{\"uuid\": \"${CONTAINER_UUID}\", \"wwwroot\": \"/inst-${CONTAINER_NAME}\", \"project\":\"${P_NAME}\", \"memory\": ${P_QUOTA_MEM}, \"swap\": ${P_QUOTA_SWAP}, \"cpus\": ${P_QUOTA_CPU} }" > ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
 
     # Start console on a free TTY
     if [ $BASE_TTY -gt 0 ]; then
