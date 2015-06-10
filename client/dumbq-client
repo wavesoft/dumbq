@@ -303,7 +303,7 @@ function open_tty_console {
     for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
 
         # Get the pid of the tty monitor
-        TTY_PID=$(cat ${TTY_FILE})
+        TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
 
         # Extract TTY ID from tty file name
         TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
@@ -356,7 +356,7 @@ function open_tty_console {
         # Get the filename to monitor
         RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
         # Create runfile
-        echo $$ > $RUN_TTYFILE
+        echo $$ ${CONTAINER_NAME} > $RUN_TTYFILE
         # Start console on the free tty
         openvt -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
         # Clear screen upon exit

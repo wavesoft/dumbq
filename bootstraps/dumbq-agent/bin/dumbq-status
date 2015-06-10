@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# DumbQ Process Status Dumping Utility
+# (C) Copyright 2015, Ioannis Charalampidis, PH/SFT, CERN
+#
+# This utility can be used a a tty session handler in order
+# to display the current process status on the window.
+#
+
+# Config
+PSDUMP_LOGDIR="/var/www/html/logs"
+DUMBQ_LIBDIR="/var/lib/dumbq"
+
+# Derrivant config
+PSDUMP_LOG_PS="${PSDUMP_LOGDIR}/top"
+DUMBQ_RUNDIR="${DUMBQ_LIBDIR}/run"
+DUMBQ_TTYDIR="${DUMBQ_LIBDIR}/tty"
+
+# Color config
+C_INVERT="\e[7m"
+C_BOLD="\e[1m"
+C_RESET="\e[0m"
+C_GREEN="\e[32m"
+C_RED="\e[31m"
+
+# Infinite loop for dumping process status
+while true; do
+
+	# Clear console
+	clear
+
+	# Instance details
+	echo -e "${C_INVERT} DumbQ Agent VM v1.0                                           ${C_BOLD}Machine Status  \r${C_RESET}"
+
+    # List machine status
+    MEM_TOTAL=$(free -m | grep "Mem" | awk '{print $2}')
+    MEM_FREE=$(free -m | grep "Mem" | awk '{print $4}')
+    SWAP_TOTAL=$(free -m | grep "Swap" | awk '{print $2}')
+    SWAP_FREE=$(free -m | grep "Swap" | awk '{print $4}')
+    echo -en "CPUs: ${C_GREEN}" $(cat /proc/cpuinfo | grep -c processor) "${C_RESET}, "
+    echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_RED}${MEM_FREE}${C_RESET}, "
+    echo -en "Swap/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_RED}${MEM_FREE}${C_RESET} "
+    echo ""
+
+	# List consoles
+	N_PROJECT=0
+	echo -en "Consoles: "
+    for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
+
+        # Get the pid of the tty monitor
+        TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
+        TTY_PROJECT=$(cat ${TTY_FILE} | awk '{print $2}' | awk -F'-' '{print $1}')
+
+        # Extract TTY ID from tty file name
+        TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+
+        # Display live consoles
+        kill -0 ${TTY_PID} 2>/dev/null
+        if [ $? -eq 0 ]; then
+
+        	# Add comma if needed
+        	if [ $N_PROJECT -gt 0 ]; then
+        		echo -n ", "
+        	fi
+        	let N_PROJECT++
+
+        	# Echo TTY/Project Name
+        	echo -en "${C_GREEN}ALT+${TTY_ID}${C_RESET} (${TTY_PROJECT})"
+        fi
+
+    done
+    echo ""
+
+	# Console-friendly and log-friendly process dumps
+	echo -e "${C_INVERT}                                                            ${C_BOLD}Running Processes  \r${C_RESET}"
+	ps xf --sort +pcpu,+pmem -o pcpu,pmem,start,time,command --width 80
+	ps aux > ${PSDUMP_LOG_PS}
+
+	# Sleep for a while
+	sleep 5
+
+done
