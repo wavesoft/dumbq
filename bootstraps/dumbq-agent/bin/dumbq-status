@@ -30,7 +30,7 @@ while true; do
 	clear
 
 	# Instance details
-	echo -e "${C_INVERT} DumbQ Agent VM v1.0                                           ${C_BOLD}Machine Status  \r${C_RESET}"
+	echo -e "${C_INVERT} DumbQ Agent VM v1.0                                             ${C_BOLD}Machine Status \r${C_RESET}"
 
     # List machine status
     MEM_TOTAL=$(free -m | grep "Mem" | awk '{print $2}')
@@ -39,7 +39,7 @@ while true; do
     SWAP_FREE=$(free -m | grep "Swap" | awk '{print $4}')
     echo -en "CPUs: ${C_GREEN}" $(cat /proc/cpuinfo | grep -c processor) "${C_RESET}, "
     echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_RED}${MEM_FREE}${C_RESET}, "
-    echo -en "Swap/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_RED}${MEM_FREE}${C_RESET} "
+    echo -en "Swap/Free: ${C_GREEN}${SWAP_TOTAL}${C_RESET}/${C_RED}${SWAP_FREE}${C_RESET} "
     echo ""
 
 	# List consoles
@@ -72,7 +72,7 @@ while true; do
     echo ""
 
 	# Console-friendly and log-friendly process dumps
-	echo -e "${C_INVERT}                                                            ${C_BOLD}Running Processes  \r${C_RESET}"
+	echo -e "${C_INVERT}                                                              ${C_BOLD}Running Processes \r${C_RESET}"
 	ps xf --sort +pcpu,+pmem -o pcpu,pmem,start,time,command --width 80
 	ps aux > ${PSDUMP_LOG_PS}
 
