@@ -73,7 +73,7 @@ while true; do
 
 	# Console-friendly and log-friendly process dumps
 	echo -e "${C_INVERT}                                                              ${C_BOLD}Running Processes \r${C_RESET}"
-	ps xf --sort +pcpu,+pmem -o pcpu,pmem,start,time,command --width 80
+	ps xf --sort +pcpu,+pmem -o pcpu,pmem,start,time,command --width 80 | tail -n20
 	ps aux > ${PSDUMP_LOG_PS}
 
 	# Sleep for a while
