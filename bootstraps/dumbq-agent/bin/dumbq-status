@@ -26,57 +26,64 @@ C_CYAN="\e[36m"
 # Infinite loop for dumping process status
 while true; do
 
-	# Clear console
-	clear
+    # Use double-buffering
+    (
 
-	# Instance details
-	echo -e "${C_INVERT} DumbQ Agent VM v1.0                                             ${C_BOLD}Machine Status \r${C_RESET}"
+    	# Instance details
+    	echo -e "${C_INVERT} DumbQ Agent VM v1.0                                             ${C_BOLD}Machine Status \r${C_RESET}"
 
-    # List machine status
-    MEM_TOTAL=$(free -m | grep "Mem" | awk '{print $2}')
-    MEM_FREE=$(free -m | grep "Mem" | awk '{print $4}')
-    SWAP_TOTAL=$(free -m | grep "Swap" | awk '{print $2}')
-    SWAP_FREE=$(free -m | grep "Swap" | awk '{print $4}')
-    LOAD=$(uptime | sed 's/.*load average: //')
-    echo -en "CPUs: ${C_GREEN}" $(cat /proc/cpuinfo | grep -c processor) "${C_RESET}, "
-    echo -en "Load: ${C_GREEN}${LOAD}${C_RESET}, "
-    echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_CYAN}${MEM_FREE}${C_RESET}, "
-    echo -en "Swap/Free: ${C_GREEN}${SWAP_TOTAL}${C_RESET}/${C_CYAN}${SWAP_FREE}${C_RESET}, "
-    echo ""
+        # List machine status
+        MEM_TOTAL=$(free -m | grep "Mem" | awk '{print $2}')
+        MEM_FREE=$(free -m | grep "Mem" | awk '{print $4}')
+        SWAP_TOTAL=$(free -m | grep "Swap" | awk '{print $2}')
+        SWAP_FREE=$(free -m | grep "Swap" | awk '{print $4}')
+        LOAD=$(uptime | sed 's/.*load average: //')
+        echo -en "CPUs: ${C_GREEN}" $(cat /proc/cpuinfo | grep -c processor) "${C_RESET}, "
+        echo -en "Load: ${C_GREEN}${LOAD}${C_RESET}, "
+        echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_CYAN}${MEM_FREE}${C_RESET}, "
+        echo -en "Swap/Free: ${C_GREEN}${SWAP_TOTAL}${C_RESET}/${C_CYAN}${SWAP_FREE}${C_RESET}, "
+        echo ""
 
-	# List consoles
-	N_PROJECT=0
-	echo -en "Consoles: "
-    for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
+    	# List consoles
+    	N_PROJECT=0
+    	echo -en "Consoles: "
+        for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
 
-        # Get the pid of the tty monitor
-        TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
-        TTY_PROJECT=$(cat ${TTY_FILE} | awk '{print $2}' | awk -F'-' '{print $1}')
+            # Get the pid of the tty monitor
+            TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
+            TTY_PROJECT=$(cat ${TTY_FILE} | awk '{print $2}' | awk -F'-' '{print $1}')
 
-        # Extract TTY ID from tty file name
-        TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+            # Extract TTY ID from tty file name
+            TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
 
-        # Display live consoles
-        kill -0 ${TTY_PID} 2>/dev/null
-        if [ $? -eq 0 ]; then
+            # Display live consoles
+            kill -0 ${TTY_PID} 2>/dev/null
+            if [ $? -eq 0 ]; then
 
-        	# Add comma if needed
-        	if [ $N_PROJECT -gt 0 ]; then
-        		echo -n ", "
-        	fi
-        	let N_PROJECT++
+            	# Add comma if needed
+            	if [ $N_PROJECT -gt 0 ]; then
+            		echo -n ", "
+            	fi
+            	let N_PROJECT++
 
-        	# Echo TTY/Project Name
-        	echo -en "${C_GREEN}ALT+${TTY_ID}${C_RESET} (${TTY_PROJECT})"
-        fi
+            	# Echo TTY/Project Name
+            	echo -en "${C_GREEN}ALT+${TTY_ID}${C_RESET} (${TTY_PROJECT})"
+            fi
 
-    done
-    echo ""
+        done
+        echo ""
 
-	# Console-friendly and log-friendly process dumps
-	echo -e "${C_INVERT}                                                              ${C_BOLD}Running Processes \r${C_RESET}"
-	ps x --sort -pcpu,-pmem -o pcpu,pmem,start,time,command --width 80 | head -n20
-	ps aux > ${PSDUMP_LOG_PS}
+    	# Console-friendly and log-friendly process dumps
+    	echo -e "${C_INVERT}                                                              ${C_BOLD}Running Processes \r${C_RESET}"
+    	ps x --sort -pcpu,-pmem -o pcpu,pmem,start,time,command --width 80 | head -n20
+    	ps aux > ${PSDUMP_LOG_PS}
+
+    ) > /tmp/~dumbq-status.buffer
+    
+    # Swap buffers
+    clear
+    cat /tmp/~dumbq-status.buffer
+    rm /tmp/~dumbq-status.buffer
 
 	# Sleep for a while
 	sleep 5
