@@ -26,6 +26,7 @@ CONFIG_SSL_CERTS=""
 CONFIG_SSL_CAPATH=""
 SHARED_MOUNT=""
 BASE_TTY=0
+DUMBQ_VERSION="1.0"
 ##########################
 
 # Local configuration
@@ -164,13 +165,17 @@ function update_index {
         [ ${NUM_INST} -gt 0 ] && echo -n ", " >> ${INDEX_FILE}
         cat $RUN_FILE | tr -d '\n' >> ${INDEX_FILE}
 
+        # Increment number of instances
+        let NUM_INST++
+
     done
 
     # Complete index file
     cat <<EOF >> ${INDEX_FILE}
  ],
     "updated": $(date +%s),
-    "machine_uuid": ${HOST_UUID}
+    "machine_uuid": "${HOST_UUID}",
+    "version": "${DUMBQ_VERSION}"
 }    
 EOF
 
@@ -556,6 +561,7 @@ done
 [ ! -d ${DUMBQ_TTYDIR} ] && mkdir -p $DUMBQ_TTYDIR
 
 # Log system configuration (for debug purposes)
+echo "INFO: DumbQ Client version ${DUMBQ_VERSION} started"
 echo "INFO: Using configuration from ${CONFIG_SOURCE}"
 echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
 if [ $BASE_TTY -gt 0 ]; then
