@@ -157,10 +157,14 @@ if [ ! -f /etc/cron.daily/reboot ]; then
 # Reboot banner
 wall "A scheduled daily reboot will begin promptly"
 
-# Kill dumbq-client
+# Stop status tty
+initctl stop dumbq-status CONSOLE=2
+
+# Kill all processes from CVMFS in order to avoid panics at reboot 
 PID_DUMBQ_INIT=\$(ps aux | grep dumbq-agent/init.sh | grep -v grep | awk '{print \$2}')
 PID_DUMBQ_CLIENT=\$(ps aux | grep dumbq-client | grep -v grep | awk '{print \$2}')
-kill \${PID_DUMBQ_CLIENT} \${PID_DUMBQ_INIT}
+PID_DUMBQ_STATUS=\$(ps aux | grep dumbq-status | grep -v grep | awk '{print \$2}')
+kill \${PID_DUMBQ_CLIENT} \${PID_DUMBQ_STATUS} \${PID_DUMBQ_INIT}
 
 # Destroy all containers
 for CONTAINER in \$(lxc-ls --active); do
