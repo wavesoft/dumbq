@@ -229,6 +229,21 @@ cat <<EOF > ${WWW_ROOT}/index.json
 {}
 EOF
 
+# Make sure we have CORS enabled
+if [ ! -f /etc/httpd/conf.d/cors.conf ]; then
+
+    # Prepare cross-origin requests for the webserver
+    cat <<EOF > /etc/httpd/conf.d/cors.conf
+<VirtualHost *:80>
+    DocumentRoot /var/www/html
+    Options Indexes
+    Header set Access-Control-Allow-Origin "*"
+</VirtualHost>
+EOF
+
+fi
+
+
 # Start apache if not started
 service httpd start
 
