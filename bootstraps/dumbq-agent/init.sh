@@ -47,7 +47,7 @@ if [ ! -f /etc/init/dumbq-status.conf ]; then
 stop on runlevel [S016]
 respawn
 instance dumbq-status-\$CONSOLE
-exec openvt -f -c \$CONSOLE -- ${DUMBQ_STATUS_BIN}
+exec openvt -w -f -c \$CONSOLE -- ${DUMBQ_STATUS_BIN}
 usage 'dumbq-status CONSOLE=X  - where X is console id'
 EOF
 
