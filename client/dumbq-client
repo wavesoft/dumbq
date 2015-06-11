@@ -357,8 +357,21 @@ function open_tty_console {
         RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
         # Create runfile
         echo $$ ${CONTAINER_NAME} > $RUN_TTYFILE
-        # Start console on the free tty
-        openvt -w -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+        # Clear screen upon enter
+        clear > /dev/tty${TTY_ID}
+
+        # Keep the console alive as long as we have the container
+        while [ $(lxc-ls --active | grep -c {$CONTAINER_NAME}) -ne 0 ]; then
+
+            # Connect banner
+            echo "Connecting to ${CONTAINER_NAME}..." > /dev/tty${TTY_ID}
+            sleep 2
+
+            # Start console on the free tty
+            openvt -w -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+
+        fi
+
         # Clear screen upon exit
         clear > /dev/tty${TTY_ID}
         # Upon exit, close console
