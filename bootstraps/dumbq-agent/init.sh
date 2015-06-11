@@ -236,6 +236,16 @@ service httpd start
 # 5) GO!
 ######################################
 
+# Banner on vt#1
+chvt 1
+clear
+echo ""
+echo "* * * * * * * * * * * * * * * * * * * * * * *"
+echo "* DumbQ VM v1.0 - Maintenance Console       *"
+echo "* Press enter to display the log-in prompt  *"
+echo "* * * * * * * * * * * * * * * * * * * * * * *"
+echo ""
+
 # Change to vt#2
 chvt 2
 

@@ -67,7 +67,7 @@ while true; do
             	let N_PROJECT++
 
             	# Echo TTY/Project Name
-            	echo -en "${C_GREEN}ALT+${TTY_ID}${C_RESET} (${TTY_PROJECT})"
+            	echo -en "${C_GREEN}ALT+F${TTY_ID}${C_RESET} (${TTY_PROJECT})"
             fi
 
         done
