@@ -358,7 +358,7 @@ function open_tty_console {
         # Create runfile
         echo $$ ${CONTAINER_NAME} > $RUN_TTYFILE
         # Start console on the free tty
-        openvt -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
+        openvt -w -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
         # Clear screen upon exit
         clear > /dev/tty${TTY_ID}
         # Upon exit, close console
