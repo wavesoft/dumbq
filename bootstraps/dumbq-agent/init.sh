@@ -143,13 +143,13 @@ if [ ! -f /etc/cron.daily/reboot ]; then
 wall "A scheduled daily reboot will begin promptly"
 
 # Kill dumbq-client
-PID_DUMBQ_INIT=$(ps aux | grep dumbq-agent/init.sh | grep -v grep | awk '{print $2}')
-PID_DUMBQ_CLIENT=$(ps aux | grep dumbq-client | grep -v grep | awk '{print $2}')
-kill ${PID_DUMBQ_CLIENT} ${PID_DUMBQ_INIT}
+PID_DUMBQ_INIT=\$(ps aux | grep dumbq-agent/init.sh | grep -v grep | awk '{print \$2}')
+PID_DUMBQ_CLIENT=\$(ps aux | grep dumbq-client | grep -v grep | awk '{print \$2}')
+kill \${PID_DUMBQ_CLIENT} \${PID_DUMBQ_INIT}
 
 # Destroy all containers
-for CONTAINER in $(lxc-ls --active); do
-	cernvm-fork ${CONTAINER} -D
+for CONTAINER in \$(lxc-ls --active); do
+	cernvm-fork \${CONTAINER} -D
 done
 
 # Reboot
