@@ -16,6 +16,11 @@ SWAPFILE="/mnt/.rw/swapfile"
 # Apache server www root
 WWW_ROOT="/var/www/html"
 
+# Get some metrics from our current environment
+CPUS=$(cat /proc/cpuinfo | grep -c processor)
+MEMORY=$(free -m | grep -i mem | awk '{print $2}')
+DISK=$(df -m / 2>&1 | grep '/' | awk '{print $2}')
+
 ######################################
 # Multiple executions guard
 ######################################
@@ -85,9 +90,13 @@ if [ $SWAP_SIZE -eq 0 ]; then
 	# Create swapfile if missing
 	if [ ! -f "${SWAPFILE}" ]; then
 
-		# Create 1Gb swapfile
+		# Create 1Gb swapfile per core
+		SWAP_SIZE=262144
+		let SWAP_SIZE*=${CPUS}
+
+		# Create swapfile
 		mkdir -p $(dirname ${SWAPFILE})
-		dd if=/dev/zero of=${SWAPFILE} bs=4096 count=262144
+		dd if=/dev/zero of=${SWAPFILE} bs=4096 count=${SWAP_SIZE}
 
 		# Fix permissions
 		chown root:root ${SWAPFILE}
@@ -96,12 +105,18 @@ if [ $SWAP_SIZE -eq 0 ]; then
 		# Allocae swap
 		mkswap ${SWAPFILE}
 
+		# Convert SWAP_SIZE metric to bytes
+		let SWAP_SIZE*=4096
+
 	fi
 
 	# Activate swap
 	swapon ${SWAPFILE}
 
 fi
+
+# Convert SWAP_SIZE metric to megabytes
+let SWAP_SIZE/=1048576
 
 # Make sure we reboot on kernel panic
 if [ $(cat /proc/sys/kernel/panic) -eq 0 ]; then
@@ -192,11 +207,6 @@ function update_host_uuid {
 # Update and/or generate machine UUID
 update_host_uuid
 
-# Get some metrics from our current environment
-CPUS=$(cat /proc/cpuinfo | grep -c processor)
-MEMORY=$(free -m | grep -i mem | awk '{print $2}')
-DISK=$(df -m / 2>&1 | grep '/' | awk '{print $2}')
-
 # Expose machine configuration
 cat <<EOF > ${WWW_ROOT}/machine.json
 {
@@ -204,6 +214,7 @@ cat <<EOF > ${WWW_ROOT}/machine.json
 	"info": {
 		"cpus": "${CPUS}",
 		"memory": "${MEMORY}",
+		"swap": "${SWAP_SIZE}"
 		"disk": "${DISK}"
 	},
 	"layout": {
