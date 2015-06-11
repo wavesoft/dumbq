@@ -306,7 +306,7 @@ function open_tty_console {
         TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
 
         # Extract TTY ID from tty file name
-        TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+        TTY_ID=$(echo "$TTY_FILE" | sed -r s/.*tty([0-9]+)/\1/)
 
         # Check for jumps in ID
         if [ ! -z "$EXPECT_ID" -a $TTY_ID -ne $EXPECT_ID ]; then

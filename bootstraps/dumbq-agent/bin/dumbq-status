@@ -54,7 +54,7 @@ while true; do
             TTY_PROJECT=$(cat ${TTY_FILE} | awk '{print $2}' | awk -F'-' '{print $1}')
 
             # Extract TTY ID from tty file name
-            TTY_ID=$(echo "$TTY_FILE" | sed s/tty//)
+            TTY_ID=$(echo "$TTY_FILE" | sed -r s/.*tty([0-9]+)/\1/)
 
             # Display live consoles
             kill -0 ${TTY_PID} 2>/dev/null
