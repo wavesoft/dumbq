@@ -11,7 +11,9 @@ BOOTSTRAP_VER="1"
 # Less important parameters
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
-DUMBQ_LOGCAT="${DUMBQ_DIR}/client/dumbq-logcat"
+DUMBQ_BIN_DIR="${DUMBQ_DIR}/client"
+DUMBQ_LOGCAT_BIN="${DUMBQ_BIN_DIR}/dumbq-logcat"
+DUMBQ_METRICS_BIN="${DUMBQ_BIN_DIR}/dumbq-metrics"
 
 # Databridge client bin
 DATABRIDGE_AGENT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/databridge-interface/client/bin/databridge-agent"
@@ -31,7 +33,7 @@ mkdir -p ${T4T_WEBAPP_DST}/job
 
 (
   # Start logcat with all the interesting log files
-  ${DUMBQ_LOGCAT} \
+  ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
     ${T4T_WEBAPP_LOGDIR}/bootstrap-out.log[cyan] \
     ${T4T_WEBAPP_LOGDIR}/bootstrap-err.log[magenta] \
@@ -60,6 +62,9 @@ chmod a+rx /usr/bin/copilot-config
 
 # 3) Start databridge-client
 # ----------------------------------
+
+# Include DUMBQ binary dir in environment
+export PATH="${PATH}:${DUMBQ_BIN_DIR}"
 
 # Start databridge agent
 ${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log

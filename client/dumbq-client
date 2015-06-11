@@ -29,13 +29,13 @@ BASE_TTY=0
 ##########################
 
 # Local configuration
-DUMBQ_LIBDIR=/var/lib/dumbq
-DUMBQ_RUNDIR=${DUMBQ_LIBDIR}/run
-DUMBQ_TTYDIR=${DUMBQ_LIBDIR}/tty
-DUMBQ_ENV_CACHE=${DUMBQ_LIBDIR}/env.cache
-CONFIG_PREFERENCE=${DUMBQ_LIBDIR}/preference.conf
-CONFIG_CACHE=${DUMBQ_LIBDIR}/config.conf
-CERNVM_FORK_BIN=/usr/bin/cernvm-fork
+DUMBQ_LIBDIR="/var/lib/dumbq"
+DUMBQ_RUNDIR="${DUMBQ_LIBDIR}/run"
+DUMBQ_TTYDIR="${DUMBQ_LIBDIR}/tty"
+DUMBQ_ENV_CACHE="${DUMBQ_LIBDIR}/env.cache"
+CONFIG_PREFERENCE="${DUMBQ_LIBDIR}/preference.conf"
+CONFIG_CACHE="${DUMBQ_LIBDIR}/config.conf"
+CERNVM_FORK_BIN="/usr/bin/cernvm-fork"
 GUEST_SHARED_MOUNT="var/www/html"
 HOST_WEB_DIR="/var/www/html"
 BIND_MOUNT=""
