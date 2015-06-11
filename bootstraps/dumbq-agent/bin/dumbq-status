@@ -21,7 +21,7 @@ C_INVERT="\e[7m"
 C_BOLD="\e[1m"
 C_RESET="\e[0m"
 C_GREEN="\e[32m"
-C_RED="\e[31m"
+C_CYAN="\e[36m"
 
 # Infinite loop for dumping process status
 while true; do
@@ -37,9 +37,11 @@ while true; do
     MEM_FREE=$(free -m | grep "Mem" | awk '{print $4}')
     SWAP_TOTAL=$(free -m | grep "Swap" | awk '{print $2}')
     SWAP_FREE=$(free -m | grep "Swap" | awk '{print $4}')
+    LOAD=$(uptime | sed 's/.*load average: //')
     echo -en "CPUs: ${C_GREEN}" $(cat /proc/cpuinfo | grep -c processor) "${C_RESET}, "
-    echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_RED}${MEM_FREE}${C_RESET}, "
-    echo -en "Swap/Free: ${C_GREEN}${SWAP_TOTAL}${C_RESET}/${C_RED}${SWAP_FREE}${C_RESET} "
+    echo -en "Load: ${C_GREEN}${LOAD}${C_RESET}, "
+    echo -en "RAM/Free: ${C_GREEN}${MEM_TOTAL}${C_RESET}/${C_CYAN}${MEM_FREE}${C_RESET}, "
+    echo -en "Swap/Free: ${C_GREEN}${SWAP_TOTAL}${C_RESET}/${C_CYAN}${SWAP_FREE}${C_RESET}, "
     echo ""
 
 	# List consoles
