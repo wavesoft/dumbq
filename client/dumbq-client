@@ -309,7 +309,7 @@ function open_tty_console {
         TTY_ID=$(echo "$TTY_FILE" | sed -r 's/.*tty([0-9]+)/\1/')
 
         # Check for jumps in ID
-        if [ ! -z "$EXPECT_ID" -a $TTY_ID -ne $EXPECT_ID ]; then
+        if [ ! -z "$EXPECT_ID" -a "$TTY_ID" != "$EXPECT_ID" ]; then
             # [B] Found a gap
             TTY_ID=${EXPECT_ID}
             break
@@ -338,7 +338,7 @@ function open_tty_console {
     done
 
     # Empty directory? Pick first tty
-    if [ -z"$TTY_ID" ]; then
+    if [ -z "$TTY_ID" ]; then
         # [A] Use first available tty
         TTY_ID=${BASE_TTY}
     fi
@@ -369,7 +369,7 @@ function open_tty_console {
             openvt -w -f -c ${TTY_ID} -- ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -C
 
             # If container really went away, exit loop
-            if [ $(lxc-ls --active | grep -c {$CONTAINER_NAME}) -eq 0 ]; then
+            if [ $(lxc-ls --active | grep -c "{$CONTAINER_NAME}") -eq 0 ]; then
                 break
             fi
 
@@ -563,7 +563,7 @@ if [ $BASE_TTY -gt 0 ]; then
         echo "INFO: Reserving tty${BASE_TTY} for containers."
     else
         let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-        echo "INFO: Reserving tty[${BASE_TTY}-tty${MAX_TTY}] for containers."
+        echo "INFO: Reserving tty[${BASE_TTY}-{MAX_TTY}] for containers."
     fi
 fi
 
