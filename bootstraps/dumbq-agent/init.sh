@@ -214,7 +214,7 @@ cat <<EOF > ${WWW_ROOT}/machine.json
 	"info": {
 		"cpus": "${CPUS}",
 		"memory": "${MEMORY}",
-		"swap": "${SWAP_SIZE}"
+		"swap": "${SWAP_SIZE}",
 		"disk": "${DISK}"
 	},
 	"layout": {
