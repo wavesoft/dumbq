@@ -4,7 +4,7 @@
 /**
  * Pick an initiator function according to AMD or stand-alone loading
  */
-( window.define == undefined ? function(req, fn) { window.DQFrontEnd = fn($ || jQuery); } : window.define )(["jquery"], function($) {
+( window.define == undefined ? function(req, fn) { window.DumbQ = fn($ || jQuery); } : window.define )(["jquery"], function($) {
 
 	/**
 	 * Check if jQuery requirement was not available as expected.
@@ -15,6 +15,13 @@
 	}
 
 	/**
+	 * DumbQ Namespace
+	 */
+	var DumbQ = {
+
+	};
+
+	/**
 	 * DumbQ Front-End Interface
 	 *
 	 * This class will automatically interface to a running instance of DumbQ
@@ -23,7 +30,7 @@
 	 * Therefore it makes it easy to monitor arbitrary DumbQ instances.
 	 *
 	 */
-	var DQFrontEnd = function() {
+	var DQFrontEnd = DumbQ.Frontend = function() {
 		
 		// Config parameters
 		this.baseUrl = null;
@@ -32,7 +39,7 @@
 		this.disabled = false;
 
 		// State information
-		this.online = false;
+		this.offline = true;
 		this.seq_id = 0;
 		this.machine = { };
 		this.index = { };
@@ -44,6 +51,10 @@
 	 * Check if two object properties are the same
 	 */
 	DQFrontEnd.prototype.__same = function( a, b ) {
+
+		// Check for undefined match
+		if ((a == undefined) && (b == undefined)) return true;
+		if ((a == undefined) || (b == undefined)) return false;
 
 		// Check if properties of 'a' do not exist in 'b'
 		// and for the ones found common, check if they match
@@ -125,7 +136,7 @@
 	/**
 	 * Update index configuration
 	 */
-	DQFrontEnd.prototype.__updateIndex = function( machine ) {
+	DQFrontEnd.prototype.__updateIndex = function( index ) {
 
 		// Update index
 		this.index = index;
@@ -193,7 +204,7 @@
 		this.machine = machine;
 
 		// If we were offline before, trigger online event
-		if (!this.offline) {
+		if (this.offline) {
 			this.offline = false;
 			$(this).triggerHandler('online', [ this.machine ]);
 		}
@@ -237,7 +248,7 @@
 			// Deactivate poll flag
 			this.pollActive = false;
 			// Schedule next poll
-			this.pollTimer = setTimeout( this.__poll.bind(this), 1000 );
+			this.pollTimer = setTimeout( this.__poll.bind(this), 5000 );
 		}).bind(this);
 
 		/**
@@ -390,6 +401,6 @@
 		this.disabled = true;
 	}
 
-	return DQFrontEnd;
+	return DumbQ;
 
 });
