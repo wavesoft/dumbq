@@ -36,6 +36,8 @@ if 'DUMBQ_WWWROOT' in os.environ:
 parser = argparse.ArgumentParser(prog="dumbq-metrics", description="Helper utility to update the DumbQ public metrics database, accessible by the end-user application.")
 parser.add_argument('--db', nargs="?", metavar="path", action='store', default="%s/metrics.json" % wwwdir,
                    help='Specify the location to the metrics database')
+parser.add_argument('--del','-d', nargs=1, metavar="metric", action='append', dest='delete',
+                   help='Delete a metric with the given name')
 parser.add_argument('--set','-s', nargs=1, metavar="metric=N", action='append',
                    help='Set a particular metric to the specified value')
 parser.add_argument('--add','-a', nargs=1, metavar="metric=N", action='append',
@@ -62,6 +64,11 @@ try:
 		error_context = "set"
 		for k,v in map(lambda x: str(x[0]).split("=",1), args.set):
 			metrics.set(k,v)
+
+	if args.delete:
+		error_context = "del"
+		for k in args.delete:
+			metrics.delete(k[0])
 
 	if args.add:
 		error_context = "add"

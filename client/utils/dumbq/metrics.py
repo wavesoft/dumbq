@@ -35,6 +35,10 @@ _db = None
 #: If we should automatically commit changes
 _autocommit = True
 
+##########################################################
+# Configuration Function
+##########################################################
+
 def configure(database=None, autocommit=None):
 	"""
 	Global function to configure module
@@ -49,6 +53,10 @@ def configure(database=None, autocommit=None):
 	# Update autocommit flag if specified
 	if not autocommit is None:
 		_autocommit = autocommit
+
+##########################################################
+# Low level database operations
+##########################################################
 
 def load():
 	"""
@@ -192,6 +200,34 @@ def hasKey(key):
 	# Return true
 	return True
 
+def delKey(key):
+	"""
+	Delete a particular key
+	"""
+	global _db
+
+	# Get path components
+	path = key.split("/")
+
+	# Walk through
+	cdict = _db
+	while len(path) > 0:
+		p = path.pop(0)
+		if len(path) == 0:
+			# Reached the leaf
+			if p in cdict:
+				del cdict[p]
+		else:
+			# Walk and allocate missing paths and destroy non-dicts
+			if not (p in cdict) or not isinstance(cdict[p], dict):
+				cdict[p] = { }
+			cdict = cdict[p]
+
+
+##########################################################
+# High level interface functions
+##########################################################
+
 def set(key, value):
 	"""
 	Set a property to a value
@@ -203,6 +239,22 @@ def set(key, value):
 
 	# Update database
 	setKey(key, value)
+
+	# Commit database if autocommit
+	if _autocommit:
+		save()
+
+def delete(key):
+	"""
+	Delete a property in the database
+	"""
+
+	# Load database if missing
+	if (_db is None) or (_autocommit):
+		load()
+
+	# Delete key
+	delKey(key)
 
 	# Commit database if autocommit
 	if _autocommit:
