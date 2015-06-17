@@ -23,6 +23,10 @@ import json
 import sys
 import os
 
+# Include dumbq utilities library path
+sys.path.append( os.path.join( os.path.dirname( os.path.realpath(__file__) ), "dumbq" ) )
+import metrics
+
 # Locate the dumbq web dir
 wwwdir = "/var/www/html"
 if 'DUMBQ_WWWROOT' in os.environ:
@@ -44,18 +48,11 @@ parser.add_argument('--avg-rotate', nargs=1, metavar="N", action='store', defaul
                    help='Maximum length of average ring before rotation')
 args = parser.parse_args()
 
-# Load database from file
-db = { }
-if os.path.exists(args.db):
-	try:
-		with open(args.db, 'r') as f:
-			try:
-				db = json.loads(f.read())
-			except Exception as e:
-				db = { }
-	except Exception as e:
-		sys.stderr.write("ERROR: Unable to open database file %s for reading!\n" % args.db)
-		sys.exit(1)
+# Configure metrics
+metrics.configure(
+	database=args.db,
+	autocommit=False
+	)
 
 # Execute actions
 try:
@@ -64,65 +61,26 @@ try:
 	if args.set:
 		error_context = "set"
 		for k,v in map(lambda x: str(x[0]).split("=",1), args.set):
-			db[k] = v
+			metrics.set(k,v)
+
 	if args.add:
 		error_context = "add"
 		for k,v in map(lambda x: str(x[0]).split("=",1), args.add):
-			if '.' in v:
-				if not k in db:
-					db[k] = float(v)
-				else:
-					db[k] = float(db[k]) + float(v)
-			else:
-				if not k in db:
-					db[k] = int(v)
-				else:
-					db[k] = int(db[k]) + int(v)
+			metrics.add(k,v)
 
 	if args.mul:
 		error_context = "mul"
 		for k,v in map(lambda x: str(x[0]).split("=",1), args.mul):
-			if '.' in v:
-				if not k in db:
-					db[k] = float(v)
-				else:
-					db[k] = float(db[k]) * float(v)
-			else:
-				if not k in db:
-					db[k] = int(v)
-				else:
-					db[k] = int(db[k]) * int(v)
+			metrics.multiply(k,v)
 
 	if args.avg:
 		error_context = "avg"
 		for k,v in map(lambda x: str(x[0]).split("=",1), args.avg):
-
-			# Operate on float or int
-			if '.' in v:
-				v = float(v)
-			else:
-				v = int(v)
-
-			# If we don't have average values, create them now
-			if not '%s_values' % k in db:
-				db['%s_values' % k] = []
-
-			# Append and rotate values
-			db['%s_values' % k].append( v )
-			while len(db['%s_values' % k]) > args.ring:
-				del db['%s_values' % k][0]
-
-			# Store values & Update average
-			db[k] = sum( db['%s_values' % k] ) / len( db['%s_values' % k] )
+			metrics.average(k,v, ring=int(args.ring))
 
 except ValueError as e:
 	sys.stderr.write("ERROR: Invalid syntax in a '--%s' argument\n" % error_context)
 	sys.exit(1)
 
-# Update database
-try:
-	with open(args.db, 'w') as f:
-		f.write(json.dumps(db))
-except Exception as e:
-	sys.stderr.write("ERROR: Unable to open database file %s for writing!\n" % args.db)
-	sys.exit(1)
+# Commit database changes
+metrics.commit()

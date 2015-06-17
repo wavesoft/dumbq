@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CVMFS Binaries
-LOGCAT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/client/dumbq-logcat"
+LOGCAT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/client/utils/dumbq-logcat"
 
 # Start logcat, monitoring DumbQ Agent
 ${LOGCAT_BIN} \

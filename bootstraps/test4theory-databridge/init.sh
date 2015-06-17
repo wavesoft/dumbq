@@ -9,7 +9,7 @@ BOOTSTRAP_NAME="test4theory-databridge"
 
 # Less important parameters
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
-DUMBQ_LOGCAT="${DUMBQ_DIR}/client/dumbq-logcat"
+DUMBQ_LOGCAT="${DUMBQ_DIR}/client/utils/dumbq-logcat"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
 
 # Test4Theory WebApp

@@ -12,8 +12,8 @@ BOOTSTRAP_VER="1"
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
 DUMBQ_BIN_DIR="${DUMBQ_DIR}/client"
-DUMBQ_LOGCAT_BIN="${DUMBQ_BIN_DIR}/dumbq-logcat"
-DUMBQ_METRICS_BIN="${DUMBQ_BIN_DIR}/dumbq-metrics"
+DUMBQ_LOGCAT_BIN="${DUMBQ_BIN_DIR}/utils/dumbq-logcat"
+DUMBQ_METRICS_BIN="${DUMBQ_BIN_DIR}/utils/dumbq-metrics"
 
 # Databridge client bin
 DATABRIDGE_AGENT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/databridge-interface/client/bin/databridge-agent"

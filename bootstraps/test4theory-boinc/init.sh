@@ -12,7 +12,7 @@ JID_VER="-g"
 # Less important parameters
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
-DUMBQ_LOGCAT="${DUMBQ_DIR}/client/dumbq-logcat"
+DUMBQ_LOGCAT="${DUMBQ_DIR}/client/utils/dumbq-logcat"
 
 # Test4Theory WebApp
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
