@@ -37,9 +37,9 @@ mkdir -p ${T4T_WEBAPP_DST}/job
     --prefix="[%d/%m/%y %H:%M:%S] " \
     ${T4T_WEBAPP_LOGDIR}/bootstrap-out.log[cyan] \
     ${T4T_WEBAPP_LOGDIR}/bootstrap-err.log[magenta] \
-    ${T4T_WEBAPP_LOGDIR}/job.out[green] \
-    ${T4T_WEBAPP_LOGDIR}/job.err[red] \
-    ${T4T_WEBAPP_LOGDIR}/databridge-client.log[yellow]
+    ${T4T_WEBAPP_LOGDIR}/databridge-client.log[yellow] \
+    /tmp/mcplots-job.out[green] \
+    /tmp/mcplots-job.err[red]
 )&
 
 # Redirect stdout/err
@@ -63,11 +63,12 @@ chmod a+rx /usr/bin/copilot-config
 # 3) Start databridge-client
 # ----------------------------------
 
+# Start the log-monitoring agent that will update the dumbq metrics file
+python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
+
 # Include DUMBQ binary dir in environment
 export PATH="${PATH}:${DUMBQ_BIN_DIR}"
 
-# Start the log-monitoring agent that will update the dumbq metrics file
-${BOOTSTRAP_DIR}/bin/mcprod-monitor&
-
 # Start databridge agent
-${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
+echo "" > ${T4T_WEBAPP_LOGDIR}/databridge-client.log
+${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>>${T4T_WEBAPP_LOGDIR}/databridge-client.log >>${T4T_WEBAPP_LOGDIR}/databridge-client.log
