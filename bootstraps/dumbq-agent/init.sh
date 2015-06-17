@@ -184,6 +184,25 @@ EOF
 
 fi
 
+# We also have a mechanism to count how many hours the machine have been running
+if [ ! -f /etc/cron.hourly/runhours ]; then
+
+	# Create runhours script
+	cat <<EOF > /etc/cron.hourly/runhours
+#!/bin/bash
+# Get current value
+RUN_HOURS_FILE="/var/lib/dumbq/runhours"
+RUN_HOURS=$(cat ${RUN_HOURS_FILE} 2>/dev/null)
+[ -z "$RUN_HOURS" ] && RUN_HOURS=0
+# Increment
+let RUN_HOURS++
+# Update
+echo ${RUN_HOURS} > ${RUN_HOURS_FILE}
+EOF
+	chmod +x /etc/cron.hourly/runhours
+
+fi
+
 # Start cron if not started
 service crond start
 
