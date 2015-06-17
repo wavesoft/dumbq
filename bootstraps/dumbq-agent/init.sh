@@ -61,6 +61,14 @@ fi
 # Override start-ttys.conf in order to start only tty1 and tty2
 if [ ! -f /etc/init/start-ttys.override ]; then
 
+	# Stop all ttys (to avoid rebooting)
+	for i in {0..9}; do
+		initctl stop tty TTY=/dev/tty${i} 2>/dev/null >/dev/null
+	done
+
+	# Stop start-ttys
+	initctl stop start-ttys 2>/dev/null >/dev/null
+
 	# Change the ACTIVE_CONSOLES line
 	cat <<EOF > /etc/init/start-ttys.override
 start on stopped rc RUNLEVEL=[2345]
@@ -72,10 +80,8 @@ script
 end script
 EOF
 
-	# We need a reboot for changes to take effect
-	echo "WARNING: Rebooting in order to apply changes"
-	reboot
-	exit
+	# Start start-ttys
+	initctl start start-ttys 2>/dev/null >/dev/null
 
 fi
 
