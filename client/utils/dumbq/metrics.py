@@ -63,30 +63,34 @@ def load():
 
 	# Load database from file
 	_db = { }
-	if os.path.exists(_db_path):
 
+	# Open file
+	isnew = False
+	try:
 		# Open file
-		try:
-			# Open file
+		if os.path.exists(_db_path):
 			_db_fd = open(_db_path, 'r+')
-			# Get exclusive lock on the entire file
-			#fcntl.lockf(_db_fd, fcntl.LOCK_EX)
-		except Exception as e:
-			raise IOError("ERROR: Unable to open database file %s for reading! (%s)\n" % (_db_path, str(e)))
+		else:
+			_db_fd = open(_db_path, 'w+')
+			isnew = True
+		# Get exclusive lock on the entire file
+		fcntl.lockf(_db_fd, fcntl.LOCK_EX)
+	except Exception as e:
+		raise IOError("ERROR: Unable to open database file %s for reading! (%s)\n" % (_db_path, str(e)))
 
-		# Try to read file
+	# Try to read file
+	if not isnew:
 		try:
+			_db_fd.seek(0)
 			_db = json.loads(_db_fd.read())
 		except IOError as e:
 			# Close database
 			_db_fd.close()
 			_db_fd = None
 			raise IOError("ERROR: Unable to read database file %s (%s)!\n" % (_db_path, str(e)))
-
 		except ValueError as e:
-			sys.stderr.write("WARNING: Syntax error wile reading database file %s!\n" % _db_path)
 			_db = { }
-
+			sys.stderr.write("WARNING: Invalid contents of database %s!\n" % _db_path)
 
 def commit():
 	"""
