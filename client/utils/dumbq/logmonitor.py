@@ -19,10 +19,119 @@
 #
 
 import os
+import time
 
-# Log file directories
-LOG_OUT="/tmp/job.out"
-LOG_ERR="/tmp/job.err"
+class LogMonitorLogic:
+	"""
+	Base class for writing log parsing logic
+	"""
+
+	def reset(self):
+		"""
+		Reset monitor (ex.) because the file was truncated
+		"""
+		pass
+
+	def parse(self, line):
+		"""
+		Handle an incoming line
+		"""
+		pass
+
+class LogMonitorEntry:
+	"""
+	An entry in the log monitor
+	"""
+
+	def __init__(self, fileName, logic):
+		"""
+		Initialize a log monitor entry
+		"""
+		self.fileName = fileName
+		self.logic = logic
+
+		# The name of last link (used for integrity check)
+		self.lastLinkName = None
+		# The current state
+		self.open = False
+
+		# The file descriptor
+		self.fd = None
+
+	def check_valid(self):
+		"""
+		Check if the file we are monitoring is valid
+		"""
+
+		# Return false if any of the files are missing
+		if not os.path.isfile(self.fileName):
+			return False
+
+		# We are good. Check if the files are symbolic links
+		# and if yes, extract integrity information.
+		linkName = None
+		if os.path.islink(self.fileName):
+			linkName = os.readlink(self.fileName)
+
+		# If we have last link name, verify
+		if not self.lastLinkName is None:
+			if self.lastLinkName != linkName:
+				return False
+
+		# Looks good
+		return True
+
+	def check_open(self):
+		"""
+		Return TRUE if the logfiles are accessible and if 'last'
+		parameter is defined, also validated against their integrity.
+		"""
+
+		# Check if it's invalid
+		if not self.check_valid():
+			return None
+
+		# Try to open and if error, return
+		fd = None
+		try:
+			fd = open(self.fileName, 'r')
+		except Exception as e:
+			return None
+
+		# We are good
+		return fd
+
+	def step(self):
+		"""
+		Execute one step in monitor probing and exit
+		"""
+		
+		# If the file descriptor is closed, check if we can open it
+		if not self.fd:
+
+			# Try to open
+			self.fd = check_open()
+
+			# If we managed, reset logic
+			if self.fd:
+				self.logic.reset()
+			else:
+				return
+
+		# If we have a file descriptor, check when it becomes invalid
+		if self.fd and not self.check_valid():
+				self.fd.close()
+				self.fd = None
+				return
+
+		# Otherwise try to read the pending lines
+		if self.fd:
+			# While not EOF, read lines
+			while self.fd.tell() != os.fstat(self.fd.fileno()).st_size:
+				# Read line
+				line = self.fd.readline()
+				# Pass to logic
+				self.logic.parse(line)
 
 class LogMonitor:
 	"""
@@ -30,55 +139,47 @@ class LogMonitor:
 	and calls a parser logic in order to handle their status update.
 	"""
 
+	def __init__(self):
+		"""
+		Initialize the log monitor
+		"""
+		self.monitors = [ ]
+		self.active = True
 
+	def step(self):
+		"""
+		Iterate over the log lines
+		"""
+		
+		# Run step of all entries
+		for m in self.monitors:
+			m.step()
 
-class ParserLogic:
+	def stop(self):
+		"""
+		Stop the infinite loop in start method
+		"""
+		self.active = False
 
-	
+	def start(self):
+		"""
+		Infinite loop that monitors the log files
+		"""
 
-def check_logs_integrity(info=None):
-	"""
-	Return TRUE if the logfiles are accessible and if 'info'
-	parameter is defined, also validated against their integrity.
-	"""
+		# Loop until stop()
+		self.active = True
+		while self.active:
+			# Run all steps
+			self.step()
+			# Sleep a bit
+			time.sleep(0.5)
 
-	# Return false if any of the files are missing
-	if not os.path.isfile(LOG_OUT) or not os.path.isfile(LOG_ERR):
-		return False
+	def monitor(self, logFile, logParser):
+		"""
+		Monitor the specified log file with the specified log parser
+		"""
 
-	# Try to open and if error, return
-	try:
-		with open(LOG_OUT, 'r') as f:
-			pass
-	except Exception as e:
-		return False
-	try:
-		with open(LOG_ERR, 'r') as f:
-			pass
-	except Exception as e:
-		return False
-
-	# We are good. Check if the files are symbolic links
-	# and if yes, extract integrity information.
-	integrity = [None, None]
-	if os.path.islink(LOG_OUT):
-		integrity[0] = os.readlink(LOG_OUT)
-	if os.path.islink(LOG_ERR):
-		integrity[0] = os.readlink(LOG_ERR)
-
-	# If we have integrity information, validate
-	if not info is None:
-		if info[0] != integrity[0]:
-			return False
-		if info[1] != integrity[1]:
-			return False
-
-	# Return integrity information
-	return integrity
-
-def monitor_thread():
-	"""
-	A thread that monitors the current logs
-	"""
-
-	while logs_accessible():
+		# Store a new monitor entry
+		self.monitors.append(
+				LogMonitorEntry(logFile, logParser)
+			)
