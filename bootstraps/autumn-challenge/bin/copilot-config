@@ -14,11 +14,11 @@ switch ($option) {
                 exit 0;
         }
         case /--stdout-file/ {
-                print "/var/www/html/logs/job.out";
+                print "/tmp/mcplots-job.out";
                 exit 0;
         }
         case /--stderr-file/ {
-                print "/var/www/html/logs/job.err";
+                print "/tmp/mcplots-job.err";
                 exit 0;
         }
         case /--print-logs/ {

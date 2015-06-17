@@ -66,5 +66,8 @@ chmod a+rx /usr/bin/copilot-config
 # Include DUMBQ binary dir in environment
 export PATH="${PATH}:${DUMBQ_BIN_DIR}"
 
+# Start the log-monitoring agent that will update the dumbq metrics file
+${BOOTSTRAP_DIR}/bin/mcprod-monitor&
+
 # Start databridge agent
 ${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>${T4T_WEBAPP_LOGDIR}/databridge-client.log >${T4T_WEBAPP_LOGDIR}/databridge-client.log
