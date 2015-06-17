@@ -20,6 +20,7 @@
 
 import os
 import time
+import traceback
 
 class LogMonitorLogic:
 	"""
@@ -114,7 +115,11 @@ class LogMonitorEntry:
 
 			# If we managed, reset logic
 			if self.fd:
-				self.logic.reset()
+				try:
+					self.logic.reset()
+				except Exception as e:
+					print "ERROR: Exception in parser logic of file %s: %s" % (self.fileName, str(e)) 
+					traceback.print_exc()
 			else:
 				return
 
@@ -131,7 +136,11 @@ class LogMonitorEntry:
 				# Read line
 				line = self.fd.readline()
 				# Pass to logic
-				self.logic.parse(line)
+				try:
+					self.logic.parse(line)
+				except Exception as e:
+					print "ERROR: Exception in parser logic of file %s: %s" % (self.fileName, str(e)) 
+					traceback.print_exc()
 
 class LogMonitor:
 	"""
