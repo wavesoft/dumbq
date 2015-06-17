@@ -170,12 +170,18 @@ function update_index {
 
     done
 
+    # Get uptime
+    UPTIME=$(cat /proc/uptime | tr ' ' ',')
+    LOAD=$(uptime | sed 's/.*load average: //')
+
     # Complete index file
     cat <<EOF >> ${INDEX_FILE}
  ],
     "updated": $(date +%s),
     "machine_uuid": "${HOST_UUID}",
-    "version": "${DUMBQ_VERSION}"
+    "version": "${DUMBQ_VERSION}",
+    "uptime": [${UPTIME}],
+    "load": [${LOAD}],
 }    
 EOF
 
