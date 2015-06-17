@@ -101,7 +101,7 @@ The `metrics` object provides overall details of the status of the instance and 
         <td>A number indicating how many seconds the machine have been idle.</td>
     </tr>
     <tr>
-        <td><code>runtime</code></td>
+        <td><code>runhours</code></td>
         <td>integer</td>
         <td>A number indicating how many hours the machine has been running, regardless of reboots.</td>
     </tr>

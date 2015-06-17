@@ -45,6 +45,9 @@
 		this.index = { };
 		this.instances = [ ];
 
+		// A flag that indicates if a summarization was performed
+		this.summarised = false;
+
 	}
 
 	/**
@@ -131,12 +134,19 @@
 		metrics['progress'] = (progress / progressCount) || 0;
 		metrics['load'] = (this.index['load'] || [])[1] || 0.0;
 		metrics['uptime'] = (this.index['uptime'] || [])[0] || 0.0;
-		metrics['idletime'] = (this.index['idletime'] || [])[1] || 0.0;
-		metrics['runtime'] = (this.index['runtime'] || [])[0] || 0
+		metrics['idletime'] = (this.index['uptime'] || [])[1] || 0.0;
+		metrics['runhours'] = this.index['runhours'] || 0;
 
-		// Calculate activity index
+		// Calculate activity index = CPU load (0% ~ 200%)
 		var activity = (this.index['load'] || [])[1] || 0.0;
-		if (activity > 1.0) activity = 1.0;
+		if (activity > 1.0) {
+			// 1.0 - 2.0 == 80% -- 100%
+			if (activity > 2.0) activity = 2.0;
+			activity = 0.8 + (activity - 1.0) * 0.2;
+		} else {
+			// 0.0 - 1.0 == 0% - 80%
+			activity *= 0.8;
+		}
 		metrics['activity'] = activity;
 
 		// Fire callback
@@ -160,9 +170,6 @@
 			// Trigger online event
 			$(this).triggerHandler('online.instance', [ instance ]);
 			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
-
-			// Update summarisation
-			this.__updateSummarization();
 			return;
 
 		}
@@ -175,9 +182,6 @@
 
 			// Trigger metrics event
 			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
-
-			// Update summarisation
-			this.__updateSummarization();
 
 		}
 
@@ -243,9 +247,6 @@
 		// Update instances
 		this.instances = index['instances'] || [];
 
-		// Update summarisation 
-		this.__updateSummarization();
-
 	}
 
 	/**
@@ -302,6 +303,8 @@
 			this.pollActive = false;
 			// Schedule next poll
 			this.pollTimer = setTimeout( this.__poll.bind(this), 5000 );
+			// Update summarisation
+			this.__updateSummarization();
 		}).bind(this);
 
 		/**
