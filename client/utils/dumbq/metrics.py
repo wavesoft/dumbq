@@ -132,18 +132,77 @@ def commit():
 	_db_fd.close()
 	_db_fd = None
 
+def getKey(key, default=None):
+	"""
+	Return a key from the datbase
+	"""
+
+	# Get path components
+	path = key.split("/")
+
+	# Walk through
+	cdict = _db
+	while len(path) > 0:
+		p = path.pop(0)
+		if not (p in cdict) or (not isinstance(cdict[p], dict) and (len(path)>0)):
+			return default
+		cdict = cdict[p]
+
+	# Return value
+	return cdict
+
+def setKey(key, value):
+	"""
+	Set a value to a key in the database
+	"""
+	global _db
+
+	# Get path components
+	path = key.split("/")
+
+	# Walk through
+	cdict = _db
+	while len(path) > 0:
+		p = path.pop(0)
+		if len(path) == 0:
+			# Reached the leaf
+			cdict[p] = value
+		else:
+			# Walk and allocate missing paths and destroy non-dicts
+			if not (p in cdict) or not isinstance(cdict[p], dict):
+				cdict[p] = { }
+			cdict = cdict[p]
+
+def hasKey(key):
+	"""
+	Check if key exists in the database
+	"""
+
+	# Get path components
+	path = key.split("/")
+
+	# Walk through
+	cdict = _db
+	while len(path) > 0:
+		p = path.pop(0)
+		if not (p in cdict) or (not isinstance(cdict[p], dict) and (len(path)>0)):
+			return False
+		cdict = cdict[p]
+
+	# Return true
+	return True
+
 def set(key, value):
 	"""
 	Set a property to a value
 	"""
-	global _db
 
 	# Load database if missing
 	if (_db is None) or (_autocommit):
 		load()
 
 	# Update database
-	_db[key] = value
+	setKey(key, value)
 
 	# Commit database if autocommit
 	if _autocommit:
@@ -153,7 +212,6 @@ def add(key, value):
 	"""
 	Add value to the specified key
 	"""
-	global _db
 
 	# Load database if missing
 	if (_db is None) or (_autocommit):
@@ -161,15 +219,15 @@ def add(key, value):
 
 	# Update database
 	if '.' in value:
-		if not key in _db:
-			_db[key] = float(value)
+		if not hasKey(key):
+			setKey( key, float(value) )
 		else:
-			_db[key] = float(_db[key]) + float(value)
+			setKey( key, float(getKey(key)) + float(value) )
 	else:
-		if not key in _db:
-			_db[key] = int(value)
+		if not hasKey(key):
+			setKey( key, int(value) )
 		else:
-			_db[key] = int(_db[key]) + int(value)
+			setKey( key, int(getKey(key)) + int(value) )
 
 	# Commit database if autocommit
 	if _autocommit:
@@ -179,7 +237,6 @@ def multiply(key, value):
 	"""
 	Multiply database value with given value
 	"""
-	global _db
 
 	# Load database if missing
 	if (_db is None) or (_autocommit):
@@ -187,15 +244,15 @@ def multiply(key, value):
 
 	# Update database
 	if '.' in value:
-		if not key in _db:
-			_db[key] = float(value)
+		if not hasKey(key):
+			setKey( key, float(value) )
 		else:
-			_db[key] = float(_db[key]) * float(value)
+			setKey( key, float(getKey(key)) * float(value) )
 	else:
-		if not key in _db:
-			_db[key] = int(value)
+		if not hasKey(key):
+			setKey( key, int(value) )
 		else:
-			_db[key] = int(_db[key]) * int(value)
+			setKey( key, int(getKey(key)) * int(value) )
 
 	# Commit database if autocommit
 	if _autocommit:
@@ -217,17 +274,17 @@ def average(key, value, ring=20):
 	else:
 		value = int(value)
 
-	# If we don't have average values, create them now
-	if not '%s_values' % key in _db:
-		_db['%s_values' % key] = []
-
 	# Append and rotate values
-	_db['%s_values' % key].append( value )
-	while len(_db['%s_values' % key]) > ring:
-		del _db['%s_values' % key][0]
+	vals = getKey('%s_values' % key, default=[])
+	vals.append( value )
+	setKey( '%s_values' % key, vals )
+
+	# Trim ring
+	while len(_vals) > ring:
+		del _vals[0]
 
 	# Store values & Update average
-	_db[key] = sum( _db['%s_values' % key] ) / float(len( _db['%s_values' % key] ))
+	setKey( key, sum( vals ) / float(len( vals )) )
 
 	# Commit database if autocommit
 	if _autocommit:
