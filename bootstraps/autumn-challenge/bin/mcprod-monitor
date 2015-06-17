@@ -112,7 +112,7 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 			# If we got an empty line, switch back to state 0
 			if not line:
 				# Switch to 'running state'
-				self.state == 2
+				self.state = 2
 
 			else:
 				# Get key/value parameters

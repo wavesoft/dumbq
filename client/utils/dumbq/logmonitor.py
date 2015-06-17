@@ -111,7 +111,7 @@ class LogMonitorEntry:
 		if not self.fd:
 
 			# Try to open
-			self.fd = check_open()
+			self.fd = self.check_open()
 
 			# If we managed, reset logic
 			if self.fd:
