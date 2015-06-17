@@ -242,7 +242,7 @@ def set(key, value):
 
 	# Commit database if autocommit
 	if _autocommit:
-		save()
+		commit()
 
 def delete(key):
 	"""
@@ -258,7 +258,7 @@ def delete(key):
 
 	# Commit database if autocommit
 	if _autocommit:
-		save()
+		commit()
 
 def add(key, value):
 	"""
@@ -283,7 +283,7 @@ def add(key, value):
 
 	# Commit database if autocommit
 	if _autocommit:
-		save()
+		commit()
 
 def multiply(key, value):
 	"""
@@ -308,7 +308,7 @@ def multiply(key, value):
 
 	# Commit database if autocommit
 	if _autocommit:
-		save()
+		commit()
 
 def average(key, value, ring=20):
 	"""
@@ -340,5 +340,5 @@ def average(key, value, ring=20):
 
 	# Commit database if autocommit
 	if _autocommit:
-		save()
+		commit()
 
