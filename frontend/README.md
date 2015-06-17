@@ -61,3 +61,49 @@ The connection to the Virtual Machine has been interrupted.
 
 The library successfully connected to the Virtual Machine. The details about the VM can be found in the `machine` object.
 
+## High-Level Events
+
+In addition to the low-level events mentioned above, the `dumbq.js` library also calculate accumulated metrics for all the instances, and fire the following callbacks.
+
+### metrics.details( `event`, `{ metrics }` )
+
+The `metrics` object provides overall details of the status of the instance and it contains the following fields:
+
+<table>
+    <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>progress</code></td>
+        <td>float</td>
+        <td>A number between 0.0 to 1.0, indicating what's the overall progress of the tasks the machine is currently running. This value is averaged in case of more than one concurrently active workers.</td>
+    </tr>
+    <tr>
+        <td><code>activity</code></td>
+        <td>float</td>
+        <td>A number between 0.0 to 1.0, indicating what's the current machine activity. That's equal to unix CPU load but up until 1.0.</td>
+    </tr>
+    <tr>
+        <td><code>load</code></td>
+        <td>float</td>
+        <td>The actual 5-minute CPU load of the machine.</td>
+    </tr>
+    <tr>
+        <td><code>uptime</code></td>
+        <td>float</td>
+        <td>A number indicating how many seconds the machine have been running.</td>
+    </tr>
+    <tr>
+        <td><code>idletime</code></td>
+        <td>float</td>
+        <td>A number indicating how many seconds the machine have been idle.</td>
+    </tr>
+    <tr>
+        <td><code>runtime</code></td>
+        <td>integer</td>
+        <td>A number indicating how many hours the machine has been running, regardless of reboots.</td>
+    </tr>
+</table>
+

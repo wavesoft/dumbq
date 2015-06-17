@@ -102,6 +102,50 @@
 	}
 
 	/**
+	 * Update summarisation information
+	 */
+	DQFrontEnd.prototype.__updateSummarization = function() {
+
+		// Progress summarization
+		var progress = 0,
+			progressCount = 0;
+
+		// Iterate over instances
+		for (var i=0; i<this.instances.length; i++) {
+			var instance = this.instances[i];
+
+			// Skip offline nodes
+			if (instance.offline) continue;
+
+			// Get progress
+			if (instance['metrics'] !== undefined) {
+				progress += parseFloat(instance['metrics']['progress'] || 0.0);
+				progressCount += 1;
+			}
+		}
+
+		// Prepare response
+		var metrics = {};
+
+		// Update fields
+		metrics['progress'] = (progress / progressCount) || 0;
+		metrics['load'] = (this.index['load'] || [])[1] || 0.0;
+		metrics['uptime'] = (this.index['uptime'] || [])[0] || 0.0;
+		metrics['idletime'] = (this.index['idletime'] || [])[1] || 0.0;
+		metrics['runtime'] = (this.index['runtime'] || [])[0] || 0
+
+		// Calculate activity index
+		var activity = (this.index['load'] || [])[1] || 0.0;
+		if (activity > 1.0) activity = 1.0;
+		metrics['activity'] = activity;
+
+		// Fire callback
+		console.log("summarisation:", metrics);
+		$(this).triggerHandler('metrics.details', [ metrics ]);
+
+	}
+
+	/**
 	 * Update index configuration
 	 */
 	DQFrontEnd.prototype.__updateInstance = function( instance, metrics ) {
@@ -116,6 +160,9 @@
 			// Trigger online event
 			$(this).triggerHandler('online.instance', [ instance ]);
 			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
+
+			// Update summarisation
+			this.__updateSummarization();
 			return;
 
 		}
@@ -128,6 +175,9 @@
 
 			// Trigger metrics event
 			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
+
+			// Update summarisation
+			this.__updateSummarization();
 
 		}
 
@@ -192,7 +242,10 @@
 
 		// Update instances
 		this.instances = index['instances'] || [];
- 
+
+		// Update summarisation 
+		this.__updateSummarization();
+
 	}
 
 	/**
