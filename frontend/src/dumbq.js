@@ -36,7 +36,7 @@
 		this.baseUrl = null;
 		this.pollTimer = null;
 		this.pollActive = false;
-		this.disabled = false;
+		this.disabled = true;
 
 		// State information
 		this.offline = true;
@@ -440,6 +440,8 @@
 	 * Enable and specify base URL
 	 */
 	DQFrontEnd.prototype.enable = function( baseUrl ) {
+		// If already enabled, quit
+		if (!this.disabled) return;
 		// Keep the front-end base URL
 		this.baseUrl = baseUrl;
 		// Start polling
