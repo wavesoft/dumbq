@@ -34,6 +34,8 @@ DUMBQ_LIBDIR="/var/lib/dumbq"
 DUMBQ_RUNDIR="${DUMBQ_LIBDIR}/run"
 DUMBQ_TTYDIR="${DUMBQ_LIBDIR}/tty"
 DUMBQ_ENV_CACHE="${DUMBQ_LIBDIR}/env.cache"
+SHARED_META_FILE="/var/lib/dumbq-metadata"
+GUEST_META_FILE="${SHARED_META_FILE}"
 CONFIG_PREFERENCE="${DUMBQ_LIBDIR}/preference.conf"
 CONFIG_CACHE="${DUMBQ_LIBDIR}/config.conf"
 CERNVM_FORK_BIN="/usr/bin/cernvm-fork"
@@ -62,7 +64,7 @@ function usage {
     echo ""
     echo " dumbq-client [-c|--config <config>] [-t|--tty <base_tty>] [-p|--pref <source>]"
     echo "              [-S|--share <guest_dir>] [-w|--webdir <htdocs>] "
-    echo "              [-b|--bind <path>[=<host_path>]]"
+    echo "              [-b|--bind <path>[=<guest_path>]] [-m|--meta <file>[=<guest_path>]]"
     echo ""
     echo "Where:"
     echo ""
@@ -80,6 +82,8 @@ function usage {
     echo "  -w,--webdir  The directory where to expose run-time invormation that can be"
     echo "               served over a webserver in order to reach the end-user. The "
     echo "               default value is ${HOST_WEB_DIR}"
+    echo "  -m,--meta    A metadata file shared with all guests. Useful for passing"
+    echo "               arbitrary information that should be included alon every job."
     echo ""
 }
 
@@ -441,6 +445,12 @@ function start_container {
         CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${HOST_MP} ${GUEST_SHARED_MOUNT} none defaults,bind,user 0 0'"
     fi
 
+    # Share metadata file if exists
+    if [ ! -z "$SHARED_META_FILE" ]; then
+        # Bind-mount shared file
+        CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${SHARED_META_FILE} ${GUEST_META_FILE} none'"
+    fi
+
     # Pass configuration environment variables
     while read CFG; do
         CMDLINE="${CMDLINE} -E 'DUMBQ_${CFG}'"
@@ -561,6 +571,7 @@ do
         -b|--bind)      BIND_MOUNT="${BIND_MOUNT} $2"; shift 2;;
         -S|--share)     GUEST_SHARED_MOUNT=$2; shift 2 ;;
         -w|--webdir)    HOST_WEB_DIR=$2; shift 2;;
+        -m|--meta)      SHARED_META_FILE=$2; shift 2;;
         --)             shift 1; break ;;
         *)              break ;;
     esac
@@ -605,6 +616,21 @@ else
         curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
     fi
     [ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
+fi
+
+# Check if we have a shared metadata file
+if [ ! -z "${SHARED_META_FILE}" ]; then
+    # Split key/value
+    SHARED_META_FILE=$(echo "$SHARED_META_FILE" | awk -F'=' '{print $1}')
+    GUEST_META_FILE=$(echo "$SHARED_META_FILE" | awk -F'=' '{print $2}')
+    [ -z "${GUEST_META_FILE}" ] && GUEST_META_FILE="${SHARED_META_FILE}"
+    # Strip heading '/' from guest meta file
+    GUEST_META_FILE=$(echo "${GUEST_META_FILE}" | sed 's%^/%%')
+    # If the metadata file is missing, don't do anything
+    if [ ! -f "${SHARED_META_FILE}" ]; then
+        SHARED_META_FILE=""
+        GUEST_META_FILE=""
+    fi
 fi
 
 # Validate config
