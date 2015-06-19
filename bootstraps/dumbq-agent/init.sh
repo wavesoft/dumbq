@@ -89,20 +89,26 @@ fi
 # 2) SWAP & System features
 ######################################
 
-# Make sure we have a swap sapce
+# Check if swap is activated already in the system
+# ... in that case, do nothing
 SWAP_SIZE=$(free | grep -i swap | awk '{print $2}')
 if [ $SWAP_SIZE -eq 0 ]; then
+
+	# Expected minimum swap size: 1G/Core
+	MIN_SWAP_SIZE=1073741824
+	let MIN_SWAP_SIZE*=${CPUS}
+
+	# Delete swap file if too small
+	SWAP_SIZE=$(stat -c%s "$SWAPFILE")
+	[ ${SWAP_SIZE} -lt ${MIN_SWAP_SIZE} ] && rm ${SWAPFILE}
 
 	# Create swapfile if missing
 	if [ ! -f "${SWAPFILE}" ]; then
 
-		# Create 1Gb swapfile per core
-		SWAP_SIZE=262144
-		let SWAP_SIZE*=${CPUS}
-
 		# Create swapfile
 		mkdir -p $(dirname ${SWAPFILE})
-		dd if=/dev/zero of=${SWAPFILE} bs=4096 count=${SWAP_SIZE}
+		let COUNT=${MIN_SWAP_SIZE}/4096
+		dd if=/dev/zero of=${SWAPFILE} bs=4096 count=${COUNT}
 
 		# Fix permissions
 		chown root:root ${SWAPFILE}
@@ -111,8 +117,8 @@ if [ $SWAP_SIZE -eq 0 ]; then
 		# Allocae swap
 		mkswap ${SWAPFILE}
 
-		# Convert SWAP_SIZE metric to bytes
-		let SWAP_SIZE*=4096
+		# Update SWAP_SIZE
+		SWAP_SIZE=${MIN_SWAP_SIZE}
 
 	fi
 
