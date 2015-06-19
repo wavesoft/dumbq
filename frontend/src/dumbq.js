@@ -46,7 +46,7 @@
 		this.instances = [ ];
 
 		// A flag that indicates if a summarization was performed
-		this.summarised = false;
+		this.errorCounter = 0;
 
 	}
 
@@ -67,7 +67,7 @@
 					// Property types do not match? return
 					if (typeof(a[k]) != typeof(b[k])) return false;
 					// If properties are objects, perform nested __same call
-					if (typeof(a[k] == 'object'))
+					if (typeof(a[k]) == 'object')
 						if (!this.__same(a[k], b[k])) return false;
 					// Otherwise if values are not the same, return false
 					if (a[k] != b[k]) return false;
@@ -100,7 +100,7 @@
 
 		// Trigger offline event
 		instance['offline'] = true;
-		$(this).triggerHandler('offline.instance', [ instance ]);
+		$(this).triggerHandler('offline_instance', [ instance ]);
 
 	}
 
@@ -151,7 +151,7 @@
 
 		// Fire callback
 		console.log("summarisation:", metrics);
-		$(this).triggerHandler('metrics.details', [ metrics ]);
+		$(this).triggerHandler('metrics_details', [ metrics ]);
 
 	}
 
@@ -168,8 +168,8 @@
 			instance['offline'] = false;
 
 			// Trigger online event
-			$(this).triggerHandler('online.instance', [ instance ]);
-			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
+			$(this).triggerHandler('online_instance', [ instance, metrics ]);
+			$(this).triggerHandler('metrics_instance', [ metrics, instance, ]);
 			return;
 
 		}
@@ -181,7 +181,7 @@
 			instance['metrics'] = metrics;
 
 			// Trigger metrics event
-			$(this).triggerHandler('metrics.instance', [ metrics, instance, ]);
+			$(this).triggerHandler('metrics_instance', [ metrics, instance, ]);
 
 		}
 
@@ -213,8 +213,9 @@
 			if (!found) {
 
 				// Populate some useful fields
-				index['instances'][i]['offline'] = true;
-				index['instances'][i]['metrics'] = { };
+				ii['offline'] = true;
+				ii['metrics'] = { };
+				this.instances.push(ii);
 
 				// Trigger event
 				$(this).triggerHandler('created.instance', [ ii ])
@@ -240,12 +241,12 @@
 			if (!found) {
 				// Trigger event
 				$(this).triggerHandler('destroyed.instance', [ ii ])
+				// Remove and maintain index
+				this.instances.splice(i,1);
+				i -= 1;
 			}
 
 		}
-
-		// Update instances
-		this.instances = index['instances'] || [];
 
 	}
 
@@ -299,6 +300,8 @@
 
 		// Schedule next poll
 		var schedule_next = (function() {
+			// Don't continue if disabled
+			if (this.disabled) return;
 			// Deactivate poll flag
 			this.pollActive = false;
 			// Schedule next poll
@@ -320,10 +323,14 @@
 				}
 			})
 			.done((function(metrics) {
+				// Don't continue if disabled
+				if (this.disabled) return;
 				// Update metrics configuration
 				this.__updateInstance(instance, metrics);
 			}).bind(this))
 			.fail((function() {
+				// Don't continue if disabled
+				if (this.disabled) return;
 				// Mark machine as offline
 				this.__markOfflineInstance(instance);
 			}).bind(this))
@@ -354,6 +361,8 @@
 
 			// Call function chain
 			var run_Chain = function() {
+				// Don't continue if disabled
+				if (this.disabled) return;
 				if (call_stack.length == 1) {
 					var fn = call_stack.shift();
 					fn();
@@ -382,16 +391,25 @@
 				}
 			})
 			.done((function(index) {
+				// Don't continue if disabled
+				if (this.disabled) return;
+				// Reset error counter
+				this.errorCounter = 0;
 				// Update index configuration
 				this.__updateIndex(index);
 				// Continue with checking instances
 				__check_instances();
 			}).bind(this))
 			.fail((function() {
-				// Mark machine as offline
-				this.__markOffline();
-				// Schedule next poll
-				schedule_next();
+				// Don't continue if disabled
+				if (this.disabled) return;
+				// Fail after a counter
+				if (++this.errorCounter > 1) {
+					// Mark machine as offline
+					this.__markOffline();
+					// Schedule next poll
+					schedule_next();
+				}
 			}).bind(this));
 
 		}).bind(this);
@@ -410,12 +428,16 @@
 				}
 			})
 			.done((function(machine) {
+				// Don't continue if disabled
+				if (this.disabled) return;
 				// Update machine configuration
 				this.__updateMachine(machine);
 				// Continue with index update
 				__check_index();
 			}).bind(this))
 			.fail((function() {
+				// Don't continue if disabled
+				if (this.disabled) return;
 				// Mark machine as offline
 				this.__markOffline();
 				// Schedule next poll
@@ -425,7 +447,7 @@
 		}).bind(this);
 
 		// We are running the poll
-		this.pollActive = null;
+		this.pollActive = true;
 
 		// If we are offline, start with machine information.
 		if (this.offline) {
@@ -446,6 +468,7 @@
 		this.baseUrl = baseUrl;
 		// Start polling
 		this.disabled = false;
+		this.pollActive = false;
 		this.__poll();
 	}
 
@@ -455,8 +478,17 @@
 	DQFrontEnd.prototype.disable = function() {
 		// If already disabled, quit
 		if (this.disabled) return;
-		// Mark as disabled (this will stop polling)
+
+		// Mark offline
+		this.__markOffline();
+
+		// Reset properties
 		this.disabled = true;
+		this.offline = true;
+		this.machine = { };
+		this.index = { };
+		this.instances = [ ];
+		this.errorCounter = 0;
 	}
 
 	return DumbQ;
