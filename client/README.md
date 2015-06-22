@@ -23,7 +23,7 @@ The DumbQ Client has the following command-line syntax:
     </tr>
     <tr>
         <td><code>-c</code>, <code>--config</code></td>
-        <td>/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/server/default.conf</td>
+        <td>/cvmfs/sft.cern.ch/lcg/ external/experimental/ dumbq/server/default.conf</td>
         <td>Change the default path to the DumbQ scheduler configuration script.</td>
     </tr>
     <tr>
