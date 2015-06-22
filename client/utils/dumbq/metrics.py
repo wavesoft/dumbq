@@ -332,8 +332,8 @@ def average(key, value, ring=20):
 	setKey( '%s_values' % key, vals )
 
 	# Trim ring
-	while len(_vals) > ring:
-		del _vals[0]
+	while len(vals) > ring:
+		del vals[0]
 
 	# Store values & Update average
 	setKey( key, sum( vals ) / float(len( vals )) )
