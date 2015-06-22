@@ -449,6 +449,7 @@ function start_container {
     if [ ! -z "$SHARED_META_FILE" ]; then
         # Bind-mount shared file
         CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${SHARED_META_FILE} ${GUEST_META_FILE} none'"
+        CMDLINE="${CMDLINE} -E 'DUMBQ_METAFILE=/${GUEST_META_FILE}'"
     fi
 
     # Pass configuration environment variables
