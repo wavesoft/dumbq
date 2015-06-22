@@ -18,7 +18,7 @@ The DumbQ Client has the following command-line syntax:
 <table>
     <tr>
         <th>Flag</th>
-        <th>Default</th>
+        <th width="200">Default</th>
         <th>Value</th>
     </tr>
     <tr>
