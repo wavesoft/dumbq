@@ -87,6 +87,12 @@ function usage {
     echo ""
 }
 
+# Log helper
+function log {
+    # Echo log line with date
+    echo "[$(date "+%H:%M:%S %d/%m/%Y")] $1: $*"
+}
+
 # Calculate, get or generate a unique ID that identifies
 # this machine ID and store it on HOST_UUID
 function update_host_uuid {
@@ -215,7 +221,7 @@ function cleanup_stale_forks {
 
     # Remove all DUMBQ stale containers
     for CONTAINER_NAME in $DUMBQ_INACTIVE_CONTAINERS; do
-        echo "INFO: Cleaning-up stale container ${CONTAINER_NAME}"
+        log "INFO" "Cleaning-up stale container ${CONTAINER_NAME}"
 
         # Destroy fork
         ${CERNVM_FORK_BIN} ${CONTAINER_NAME} -D
@@ -366,12 +372,12 @@ function open_tty_console {
     # Check if we did not overflow
     let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
     if [ ${TTY_ID} -gt ${MAX_TTY} ]; then
-        echo "ERROR: There is no free tty for console ${CONTAINER_NAME}!"
+        log "ERROR" "There is no free tty for console ${CONTAINER_NAME}!"
         return 1
     fi
 
     # Start console daemon
-    echo "INFO: Reserving tty${TTY_ID} for ${CONTAINER_NAME}"
+    log "INFO" "Reserving tty${TTY_ID} for ${CONTAINER_NAME}"
     (
         # Get the filename to monitor
         RUN_TTYFILE=${DUMBQ_TTYDIR}/tty${TTY_ID}
@@ -477,11 +483,11 @@ function start_container {
     done
 
     # Start container
-    echo "INFO: Starting project '${P_NAME}'"
+    log "INFO" "Starting project '${P_NAME}'"
     eval ${CMDLINE} >/dev/null
 
     # Check for errors
-    [ $? -ne 0 ] && echo "ERROR: Unable to create a CernVM fork!" && return
+    [ $? -ne 0 ] && log "ERROR" "Unable to create a CernVM fork!" && return
 
     # Store details in run-flag
     echo "{\"uuid\": \"${CONTAINER_UUID}\", \"wwwroot\": \"/inst-${CONTAINER_NAME}\", \"project\":\"${P_NAME}\", \"memory\": ${P_QUOTA_MEM}, \"swap\": ${P_QUOTA_SWAP}, \"cpus\": ${P_QUOTA_CPU} }" > ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
@@ -518,11 +524,11 @@ function has_free_slot {
         if [ $(echo "$ACTIVE_CONTAINERS" | grep -c "$RUN_NAME") -eq 0 ]; then
 
             # Log
-            echo "INFO: Found inactive container '${RUN_NAME}'"
+            log "INFO" "Found inactive container '${RUN_NAME}'"
 
             # Destroy inactive container
             ${CERNVM_FORK_BIN} ${RUN_NAME} -D > /dev/null
-            [ $? -ne 0 ] && echo "WARN: Unable to destroy the container!" && return
+            [ $? -ne 0 ] && log "WARN" "Unable to destroy the container!" && return
 
             # Remove run flag
             rm $RUN_FILE
@@ -584,15 +590,15 @@ done
 [ ! -d ${DUMBQ_TTYDIR} ] && mkdir -p $DUMBQ_TTYDIR
 
 # Log system configuration (for debug purposes)
-echo "INFO: DumbQ Client version ${DUMBQ_VERSION} started"
-echo "INFO: Using configuration from ${CONFIG_SOURCE}"
-echo "INFO: Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
+log "INFO" "DumbQ Client version ${DUMBQ_VERSION} started"
+log "INFO" "Using configuration from ${CONFIG_SOURCE}"
+log "INFO" "Allocating ${CPU_COUNT} slot(s), with cpu=${SLOT_CPU}, mem=${SLOT_MEM_KB}Kb, swap=${SLOT_SWAP_KB}Kb"
 if [ $BASE_TTY -gt 0 ]; then
     if [ $CPU_COUNT -eq 1 ]; then
-        echo "INFO: Reserving tty${BASE_TTY} for containers."
+        log "INFO" "Reserving tty${BASE_TTY} for containers."
     else
         let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-        echo "INFO: Reserving tty[${BASE_TTY}-{MAX_TTY}] for containers."
+        log "INFO" "Reserving tty[${BASE_TTY}-{MAX_TTY}] for containers."
     fi
 fi
 
@@ -606,7 +612,7 @@ fi
 # Check if the config source is from the web
 if [ $(echo "${CONFIG_SOURCE}" | grep -cE '^https?:|^ftp:') -eq 0 ]; then
     # Check for missing file
-    [ ! -f ${CONFIG_SOURCE} ] && echo "ERROR: File ${CONFIG_SOURCE} was not found!" && exit 2
+    [ ! -f ${CONFIG_SOURCE} ] && log "ERROR" "File ${CONFIG_SOURCE} was not found!" && exit 2
     # Switch config cache to config file
     CONFIG_CACHE=${CONFIG_SOURCE}
 else
@@ -616,7 +622,7 @@ else
     else
         curl -s -o "${CONFIG_CACHE}" --cacert "${CONFIG_SSL_CERTS}" --capath "${CONFIG_SSL_CAPATH}" "${CONFIG_SOURCE}"
     fi
-    [ $? -ne 0 ] && echo "ERROR: Could not fetch DumbQ configuration information!" && exit 2
+    [ $? -ne 0 ] && log "ERROR" "Could not fetch DumbQ configuration information!" && exit 2
 fi
 
 # Check if we have a shared metadata file
@@ -635,7 +641,7 @@ if [ ! -z "${SHARED_META_FILE}" ]; then
 fi
 
 # Validate config
-is_config_invalid && echo "ERROR: Could not validate configuration information!" && exit 2
+is_config_invalid && log "ERROR" "Could not validate configuration information!" && exit 2
 
 # Read and cache environment parameters common
 # for all the containers
@@ -672,7 +678,7 @@ while :; do
 
         # Start container
         # (Blocking until completion)
-        echo "INFO: There is a free slot available"
+        log "INFO" "There is a free slot available"
         start_container
 
         # Wait for a while
