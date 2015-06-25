@@ -15,6 +15,7 @@ import dumbq.metrics as metrics
 
 # The path were the mcplots job output file should be located
 MCPLOTS_STDOUT_LOG = "/tmp/mcplots-job.out"
+MCPLOTS_CLONE_LOG = "/var/www/html/logs/job.out"
 
 class MCPlotsStdoutMonitor(LogMonitorLogic):
 	"""
@@ -25,12 +26,21 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		"""
 		Initialize parser
 		"""
+		self.cloneFile = None
 		self.reset()
 
 	def reset(self):
 		"""
 		Reset monitor status
 		"""
+
+		# Re-open file
+		if self.cloneFile is None:
+			self.cloneFile.close()
+			self.cloneFile = None
+
+		# Replace clone-log
+		self.cloneFile = open( MCPLOTS_CLONE_LOG, 'w' )
 
 		# Reset properties
 		self.inputParams = { }
@@ -48,6 +58,9 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		"""
 		Parse a log file
 		"""
+
+		# Clone log
+		self.cloneFile.write(line)
 
 		# Strip line
 		line = line.strip()
