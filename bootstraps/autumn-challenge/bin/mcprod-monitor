@@ -34,13 +34,19 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		Reset monitor status
 		"""
 
-		# Re-open file
-		if self.cloneFile is None:
-			self.cloneFile.close()
+		# Close old file
+		if not self.cloneFile is None:
+			try:
+				self.cloneFile.close()
+			except Exception:
+				pass
 			self.cloneFile = None
 
-		# Replace clone-log
-		self.cloneFile = open( MCPLOTS_CLONE_LOG, 'w' )
+		# Open new log file
+		try:
+			self.cloneFile = open( MCPLOTS_CLONE_LOG, 'w' )
+		except Exception:
+			self.cloneFile = None
 
 		# Reset properties
 		self.inputParams = { }
@@ -60,7 +66,8 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		"""
 
 		# Clone log
-		self.cloneFile.write(line)
+		if not self.cloneFile is None:
+			self.cloneFile.write(line)
 
 		# Strip line
 		line = line.strip()

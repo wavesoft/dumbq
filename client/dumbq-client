@@ -90,7 +90,7 @@ function usage {
 # Log helper
 function log {
     # Echo log line with date
-    echo "[$(date "+%H:%M:%S %d/%m/%Y")] $1: $*"
+    echo "[$(date '+%d/%m/%Y %H:%M:%S')] $1: $*"
 }
 
 # Calculate, get or generate a unique ID that identifies
