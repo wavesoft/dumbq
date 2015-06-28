@@ -98,17 +98,20 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 				# Calculate event delta
 				evDelta = nevts - self.lastNevts
 
-				# Calculate rate
-				rate = float(evDelta) / float(tDelta)
+				# Protect against division by zero
+				if tDelta > 0:
 
-				# Store on ring & trim
-				self.eventRateRing.append(rate)
-				while len(self.eventRateRing) > 10:
-					del self.eventRateRing[0]
+					# Calculate rate
+					rate = float(evDelta) / float(tDelta)
 
-				# Calculate average rate
-				rate = sum(self.eventRateRing) / float(len(self.eventRateRing))
-				metrics.set( "eventRate", rate )
+					# Store on ring & trim
+					self.eventRateRing.append(rate)
+					while len(self.eventRateRing) > 10:
+						del self.eventRateRing[0]
+
+					# Calculate average rate
+					rate = sum(self.eventRateRing) / float(len(self.eventRateRing))
+					metrics.set( "eventRate", rate )
 
 			# Update last event timestamp
 			self.lastEventTs = time.time()
