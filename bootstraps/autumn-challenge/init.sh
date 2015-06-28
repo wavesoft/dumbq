@@ -62,8 +62,16 @@ chmod a+rx /usr/bin/copilot-config
 
 # 3) Extract BOINC details from user-data
 # ----------------------------------
-BOINC_USERID=$(cat /var/lib/amiconfig/2007-12-15/user-data | grep -i boinc_userid | awk -F'=' '{print $2}')
-BOINC_HOSTID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data | grep -i boinc_hostid | awk -F'=' '{print $2}')
+
+# Locate BOINC User & Host ID
+BOINC_USERID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+BOINC_HOSTID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+if [ -z "$BOINC_USERID" ]; then
+  BOINC_USERID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+  BOINC_HOSTID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+fi
+
+# Prepare dumbq-metadata if required
 if [ ! -z "$BOINC_USERID" ]; then
 	# Populate shared metadata for BOINC
 	echo "BOINC_USERID=${BOINC_USERID}" > /var/lib/dumbq-meta
