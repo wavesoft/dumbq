@@ -457,7 +457,7 @@ function start_container {
     # Share metadata file if exists
     if [ ! -z "$SHARED_META_FILE" ]; then
         # Bind-mount shared file
-        CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${SHARED_META_FILE} ${GUEST_META_FILE} none'"
+        CMDLINE="${CMDLINE} -o 'lxc.mount.entry = ${SHARED_META_FILE} ${GUEST_META_FILE} none defaults,bind,user 0 0'"
         CMDLINE="${CMDLINE} -E 'DUMBQ_METAFILE=/${GUEST_META_FILE}'"
     fi
 

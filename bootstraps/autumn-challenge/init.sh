@@ -63,6 +63,13 @@ chmod a+rx /usr/bin/copilot-config
 # 3) Start databridge-client
 # ----------------------------------
 
+# Log dumb metadata for debug purposes
+if [ -f /var/lib/dumbq-meta ]; then
+	echo "--[ Global Metadata ]-------------------------"
+	cat /var/lib/dumbq-meta
+	echo "----------------------------------------------"
+fi
+
 # Start the log-monitoring agent that will update the dumbq metrics file
 python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
 
