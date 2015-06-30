@@ -278,9 +278,27 @@ EOF
 
 fi
 
-
 # Start apache if not started
 service httpd start
+
+######################################
+# 3) Extract BOINC details from user-data
+######################################
+
+# Locate BOINC User & Host ID
+BOINC_USERID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+BOINC_HOSTID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+if [ -z "$BOINC_USERID" ]; then
+  BOINC_USERID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+  BOINC_HOSTID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+fi
+
+# Prepare dumbq-metadata if required
+if [ ! -z "$BOINC_USERID" ]; then
+	# Populate shared metadata for BOINC
+	echo "BOINC_USERID=${BOINC_USERID}" > /var/lib/dumbq-meta
+	[ ! -z "$BOINC_HOSTID" ] && echo "BOINC_HOSTID=${BOINC_HOSTID}" >> /var/lib/dumbq-meta
+fi
 
 ######################################
 # 5) GO!
