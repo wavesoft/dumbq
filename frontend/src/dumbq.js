@@ -407,9 +407,9 @@
 				if (++this.errorCounter > 1) {
 					// Mark machine as offline
 					this.__markOffline();
-					// Schedule next poll
-					schedule_next();
 				}
+				// Schedule next poll
+				schedule_next();
 			}).bind(this));
 
 		}).bind(this);

@@ -163,7 +163,7 @@ function update_index {
     local INDEX_FILE=${HOST_WEB_DIR}/index.json
 
     # Prepare index file
-    echo -en "{\n    \"instances\": [" > ${INDEX_FILE}
+    echo -en "{\n    \"instances\": [" > ${INDEX_FILE}.new
 
     # List all the flags in RUN_DIR
     for RUN_FILE in ${DUMBQ_RUNDIR}/*; do
@@ -172,8 +172,8 @@ function update_index {
         [ "$RUN_FILE" == "${DUMBQ_RUNDIR}/*" ] && break
 
         # Include project details
-        [ ${NUM_INST} -gt 0 ] && echo -n ", " >> ${INDEX_FILE}
-        cat $RUN_FILE | tr -d '\n' >> ${INDEX_FILE}
+        [ ${NUM_INST} -gt 0 ] && echo -n ", " >> ${INDEX_FILE}.new
+        cat $RUN_FILE | tr -d '\n' >> ${INDEX_FILE}.new
 
         # Increment number of instances
         let NUM_INST++
@@ -189,7 +189,7 @@ function update_index {
     [ -z "$RUN_HOURS" ] && RUN_HOURS=0
 
     # Complete index file
-    cat <<EOF >> ${INDEX_FILE}
+    cat <<EOF >> ${INDEX_FILE}.new
  ],
     "updated": $(date +%s),
     "machine_uuid": "${HOST_UUID}",
@@ -201,7 +201,10 @@ function update_index {
 EOF
 
     # Make sure everyone can read
-    chmod 0644 ${INDEX_FILE}
+    chmod 0644 ${INDEX_FILE}.new
+
+    # Replace old version with new
+    mv -f ${INDEX_FILE}.new ${INDEX_FILE}
 
 }
 
