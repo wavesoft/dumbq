@@ -278,10 +278,6 @@ EOF
 
 fi
 
-# The-hell?? Somehow in Ben's computer ganglia
-# gets suddently configured
-rm /etc/httpd/conf.d/ganglia*
-
 # Start apache if not started
 service httpd start
 
