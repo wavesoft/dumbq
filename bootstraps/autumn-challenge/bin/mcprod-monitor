@@ -68,6 +68,7 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		# Clone log
 		if not self.cloneFile is None:
 			self.cloneFile.write(line)
+			self.cloneFile.flush()
 
 		# Strip line
 		line = line.strip()
