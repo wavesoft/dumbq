@@ -539,7 +539,7 @@ function has_free_slot {
             [ $? -ne 0 ] && log "WARN" "Unable to destroy the container!" && return
 
             # Remove run flag
-            rm $RUN_FILE
+            rm ${RUN_FILE}
 
             # Remove host shared mount directory
             if [ -d "${HOST_WEB_DIR}/inst-${RUN_NAME}" ]; then
@@ -606,7 +606,7 @@ if [ $BASE_TTY -gt 0 ]; then
         log "INFO" "Reserving tty${BASE_TTY} for containers."
     else
         let MAX_TTY=${BASE_TTY}+${CPU_COUNT}-1
-        log "INFO" "Reserving tty[${BASE_TTY}-{MAX_TTY}] for containers."
+        log "INFO" "Reserving tty[${BASE_TTY}-${MAX_TTY}] for containers."
     fi
 fi
 
