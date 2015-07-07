@@ -41,9 +41,17 @@
 		// State information
 		this.offline = true;
 		this.seq_id = 0;
+		this.seq_uuid = "";
 		this.machine = { };
 		this.index = { };
 		this.instances = [ ];
+
+		// Create a random ID for forcing cache invalidation
+		var set = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890";
+		for (var i=0; i<32; i++) {
+			this.seq_uuid += set[parseInt(Math.random() * set.length)];
+		}
+		this.seq_uuid += "-";
 
 		// A flag that indicates if a summarization was performed
 		this.errorCounter = 0;
@@ -319,7 +327,7 @@
 				"method": "GET",
 				"dataType": "json",
 				"data": {
-					"s": (this.seq_id++)
+					"s": this.seq_uuid+(this.seq_id++)
 				}
 			})
 			.done((function(metrics) {
@@ -387,7 +395,7 @@
 				"method": "GET",
 				"dataType": "json",
 				"data": {
-					"s": (this.seq_id++)
+					"s": this.seq_uuid+(this.seq_id++)
 				}
 			})
 			.done((function(index) {
@@ -424,7 +432,7 @@
 				"method": "GET",
 				"dataType": "json",
 				"data": {
-					"s": (this.seq_id++)
+					"s": this.seq_uuid+(this.seq_id++)
 				}
 			})
 			.done((function(machine) {
