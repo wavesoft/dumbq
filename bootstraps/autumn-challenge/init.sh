@@ -20,7 +20,7 @@ DATABRIDGE_AGENT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/databridge-in
 DATABRIDGE_BASE_URL="https://t4t-data-bridge.cern.ch"
 
 # Test4Theory WebApp
-T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
+T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/experimental/t4t-webapp/t4t-webapp.tgz"
 T4T_WEBAPP_DST="/var/www/html"
 T4T_WEBAPP_LOGDIR=${T4T_WEBAPP_DST}/logs
 
