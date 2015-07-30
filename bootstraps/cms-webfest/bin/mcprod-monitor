@@ -1,0 +1,155 @@
+#!/usr/bin/python
+#
+# Monitor the output logs of the job and update the
+# status information metadata
+#
+
+import time
+import sys
+import os
+
+# Include dumbq utilities library path from CVMFS
+sys.path.append( "/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/client/utils" )
+from dumbq.logmonitor import LogMonitorLogic, LogMonitor
+import dumbq.metrics as metrics
+
+# The path were the mcplots job output file should be located
+MCPLOTS_STDOUT_LOG = "/tmp/mcplots-job.out"
+MCPLOTS_CLONE_LOG = "/var/www/html/logs/job.out"
+
+class MCPlotsStdoutMonitor(LogMonitorLogic):
+	"""
+	MCPlots standard output log monitor
+	"""
+
+	def __init__(self):
+		"""
+		Initialize parser
+		"""
+		self.cloneFile = None
+		self.reset()
+
+	def reset(self):
+		"""
+		Reset monitor status
+		"""
+
+		# Close old file
+		if not self.cloneFile is None:
+			try:
+				self.cloneFile.close()
+			except Exception:
+				pass
+			self.cloneFile = None
+
+		# Open new log file
+		try:
+			self.cloneFile = open( MCPLOTS_CLONE_LOG, 'w' )
+		except Exception:
+			self.cloneFile = None
+
+		# Reset properties
+		self.inputParams = { }
+		self.state = 0
+		self.lastEventTs = 0
+		self.lastNevts = 0
+		self.eventRateRing = []
+
+		# Reset metrics
+		metrics.delete( "config" )
+		metrics.set( "progress", 0 )
+		metrics.set( "eventRate", 0 )
+
+	def parse(self, line):
+		"""
+		Parse a log file
+		"""
+
+		# Clone log
+		if not self.cloneFile is None:
+			self.cloneFile.write(line)
+			self.cloneFile.flush()
+
+		# Strip line
+		line = line.strip()
+
+		#
+		# (0 -> 1) Wait until we get 'Input parameters:'
+		#
+		if (self.state == 0) and ("Input parameters" in line):
+
+			# We are parsing input parameters
+			self.state = 1
+
+		#
+		# (2) Wait until we get 'Events processed'
+		#
+		if (self.state == 2) and ("Events processed" in line):
+
+			# Parse how many events are processed
+			parts = line.split(" ")
+			nevts = int(parts[0])
+
+			# Check if we have a last timestamp to calculate delta
+			if self.lastEventTs > 0:
+
+				# Calculate time delta
+				tDelta = time.time() - self.lastEventTs
+
+				# Calculate event delta
+				evDelta = nevts - self.lastNevts
+
+				# Protect against division by zero
+				if tDelta > 0:
+
+					# Calculate rate
+					rate = float(evDelta) / float(tDelta)
+
+					# Store on ring & trim
+					self.eventRateRing.append(rate)
+					while len(self.eventRateRing) > 10:
+						del self.eventRateRing[0]
+
+					# Calculate average rate
+					rate = sum(self.eventRateRing) / float(len(self.eventRateRing))
+					metrics.set( "eventRate", rate )
+
+			# Update last event timestamp
+			self.lastEventTs = time.time()
+			self.lastNevts = nevts
+
+			# Calculate progress
+			if 'nevts' in self.inputParams:
+
+				# Calculate progress
+				totalEvents = int(self.inputParams['nevts'])
+				progress = float(nevts) / float(totalEvents)
+
+				# Update progress
+				metrics.set( "progress", progress )
+
+		#
+		# (1) Parse 'Input parameters'
+		#
+		elif (self.state == 1):
+
+			# If we got an empty line, switch back to state 0
+			if not line:
+				# Switch to 'running state'
+				self.state = 2
+
+			else:
+				# Get key/value parameters
+				parts = line.split("=")
+				if len(parts) >= 2:
+					# Update input parameters
+					self.inputParams[parts[0]] = parts[1].strip()
+					# Update configuration metrics
+					metrics.set( "config/%s" % parts[0], parts[1].strip() )
+
+
+# Create a log monitor to monitor mcplots output file
+monitor = LogMonitor( )
+monitor.monitor( MCPLOTS_STDOUT_LOG, MCPlotsStdoutMonitor() )
+monitor.start()
+
