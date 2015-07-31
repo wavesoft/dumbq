@@ -1,0 +1,15 @@
+[amiconfig]
+plugins=cernvm
+
+[cernvm]
+organisations=CMS
+repositories=cms,grid
+shell=/bin/bash
+config_url=http://cernvm.cern.ch/config
+services=cvmfs,network,
+users=boinc:cms:$6$TNRr1Qpj$O7AlaBX5TBkh2v6NkzIQQaHLIy/7lf/JS0WNLgh6HofxcMun0KSGqmHSkok8V9W/U9pCMmxQGRunrQPtGTBGG/
+edition=Batch
+
+[ucernvm-begin]
+cvmfs_branch=cernvm-prod.cern.ch
+[ucernvm-end]
