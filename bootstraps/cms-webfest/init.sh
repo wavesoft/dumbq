@@ -78,7 +78,7 @@ touch /dev/fd0
 chmod +r /dev/fd0
 
 # Writing BOINC credentials
-echo "BOINC_USER_ID=35331" > /dev/fd0
+echo "BOINC_USERID=35331" > /dev/fd0
 echo -e "BOINC_AUTHENTICATOR=4c2ce9458a4750eafd589c9b4269fc2b\0" >> /dev/fd0
 
 # Copy certificates locally and install the BOINC CA
