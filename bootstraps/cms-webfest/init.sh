@@ -56,7 +56,7 @@ mkdir -p ${CMS_PUBLIC_WWW_JOBDIR}
    #   - bootstrap-err.log
   ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
-    ${CMS_PUBLIC_WWW_LOGDIR}/bootstrap-out[green] \
+    ${CMS_PUBLIC_WWW_LOGDIR}/bootstrap-out.log[green] \
     ${CMS_PUBLIC_WWW_LOGDIR}/bootstrap-err.log[magenta] \
     ${BOINC_STDOUT}[green] \
     ${BOINC_STDERR}[red] \
@@ -79,7 +79,7 @@ chmod +r /dev/fd0
 
 # Writing BOINC credentials
 echo "BOINC_USER_ID=35331" > /dev/fd0
-echo "BOINC_AUTHENTICATOR=4c2ce9458a4750eafd589c9b4269fc2b" > /dev/fd0
+echo -e "BOINC_AUTHENTICATOR=4c2ce9458a4750eafd589c9b4269fc2b\0" >> /dev/fd0
 
 # Copy certificates locally and install the BOINC CA
 rm -f /etc/grid-security/certificates
