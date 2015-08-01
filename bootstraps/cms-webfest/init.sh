@@ -17,7 +17,7 @@ DUMBQ_METRICS_BIN="${DUMBQ_UTILS_DIR}/dumbq-metrics"
 
 # CMS Paths
 CMS_PUBLIC_WWW_TGZ="/cvmfs/sft.cern.ch/lcg/external/experimental/t4t-webapp/t4t-webapp.tgz"
-CMS_HOME="${CMS_HOME}"
+CMS_HOME="/cvmfs/cms.cern.ch/CMS@Home"
 CMS_AGENT="${CMS_HOME}/agent"
 CMS_WEBAPP="${CMS_HOME}/WebApp"
 CMS_PUBLIC_WWW="${CMS_PUBLIC_WWW}"
@@ -74,12 +74,17 @@ exec 2>${CMS_PUBLIC_WWW_LOGDIR}/bootstrap-err.log >${CMS_PUBLIC_WWW_LOGDIR}/boot
 # --------------------------
 
 # Ensure the floppy drive is readable for a user
+touch /dev/fd0
 chmod +r /dev/fd0
+
+# Writing BOINC credentials
+echo "BOINC_USERID=35331" > /dev/fd0
+echo "BOINC_AUTHENTICATOR=4c2ce9458a4750eafd589c9b4269fc2b" > /dev/fd0
 
 # Copy certificates locally and install the BOINC CA
 rm -f /etc/grid-security/certificates
 cp -r /cvmfs/grid.cern.ch/etc/grid-security/certificates /etc/grid-security/
-cp -r ${CMS_HOME_AGENT}/boinc-ca/* /etc/grid-security/certificates/
+cp -r ${CMS_AGENT}/boinc-ca/* /etc/grid-security/certificates/
 
 # Plugin globus commands
 ln -sf /cvmfs/grid.cern.ch/glite/globus/bin/grid-proxy-init /usr/bin/
@@ -92,11 +97,11 @@ cvmfs_config reload
 # Manual SITECONF
 mkdir -p /etc/cms/SITECONF/BOINC/{JobConfig,PhEDEx}
 ln -sf /etc/cms/SITECONF/BOINC /etc/cms/SITECONF/local
-ln -sf ${CMS_HOME_AGENT}/site-local-config.xml  /etc/cms/SITECONF/BOINC/JobConfig/site-local-config.xml
-ln -sf ${CMS_HOME_AGENT}/storage.xml /etc/cms/SITECONF/BOINC/JobConfig/storage.xml
+ln -sf ${CMS_AGENT}/site-local-config.xml  /etc/cms/SITECONF/BOINC/JobConfig/site-local-config.xml
+ln -sf ${CMS_AGENT}/storage.xml /etc/cms/SITECONF/BOINC/JobConfig/storage.xml
 
 # Add index to the WWW public folder
-cat ${CMS_HOME_WEBAPP}/index.html > ${CMS_PUBLIC_WWW}/index.html
+cat ${CMS_WEBAPP}/index.html > ${CMS_PUBLIC_WWW}/index.html
 
 # Put the bootlog to the Web logs
 cat /var/log/boot.log > ${CMS_PUBLIC_WWW_LOGDIR}/boot.log
@@ -129,5 +134,4 @@ python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
 export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 
 # Setup the CMS-Agent cron job
-echo "* * * * * boinc ${CMS_AGENT}/CMSJobAgent.sh" > /etc/cron.d/cms-agent
-service crond restart
+su - boinc -c "${CMS_AGENT}/CMSJobAgent.sh"
