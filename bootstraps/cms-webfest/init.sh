@@ -23,8 +23,8 @@ CMS_WEBAPP="${CMS_HOME}/WebApp"
 CMS_PUBLIC_WWW="${CMS_PUBLIC_WWW}"
 CMS_PUBLIC_WWW_LOGDIR=${CMS_PUBLIC_WWW}/logs
 CMS_PUBLIC_WWW_JOBDIR=${CMS_PUBLIC_WWW}/job
-BOINC_PATH="/home/boinc/"
-CMS_PATH="${BOINC_PATH}/CMSRun/"
+BOINC_PATH="/home/boinc"
+CMS_PATH="${BOINC_PATH}/CMSRun"
 
 # Log files names
 STDOUT="stdout"
@@ -92,7 +92,6 @@ ln -sf /cvmfs/grid.cern.ch/glite/globus/bin/grid-proxy-info /usr/bin/
 
 # Temp fix for contextulization issue
 echo "export CMS_LOCAL_SITE=/etc/cms/SITECONF/BOINC" >> /etc/cvmfs/config.d/cms.cern.ch.local
-cvmfs_config reload
 
 # Manual SITECONF
 mkdir -p /etc/cms/SITECONF/BOINC/{JobConfig,PhEDEx}
@@ -105,10 +104,6 @@ cat ${CMS_WEBAPP}/index.html > ${CMS_PUBLIC_WWW}/index.html
 
 # Put the bootlog to the Web logs
 cat /var/log/boot.log > ${CMS_PUBLIC_WWW_LOGDIR}/boot.log
-
-# Start the Web server (ported from CMS script)
-# service httpd start -> It should not work. It's not tested, though
-
 
 # 2) Add the T4T application
 # --------------------------
@@ -128,7 +123,7 @@ if [ -f /var/lib/dumbq-meta ]; then
 fi
 
 # Start the log-monitoring agent that will update the dumbq metrics file
-python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
+python ${BOOTSTRAP_DIR}/bin/mcprod-monitor &
 
 # Include DUMBQ binary dir in environment
 export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
