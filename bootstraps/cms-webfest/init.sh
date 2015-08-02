@@ -129,4 +129,6 @@ python ${BOOTSTRAP_DIR}/bin/mcprod-monitor &
 export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 
 # Setup the CMS-Agent cron job
+sleep 2
 su - boinc -c "${CMS_AGENT}/CMSJobAgent.sh"
+sleep 2
