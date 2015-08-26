@@ -9,6 +9,7 @@ DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 DUMBQ_AGENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
 DUMBQ_BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/dumbq-agent"
 DUMBQ_STATUS_BIN="${DUMBQ_BOOTSTRAP_DIR}/bin/dumbq-status"
+DUMBQ_VERSION_FLAG="${DUMBQ_BOOTSTRAP_DIR}/version"
 
 # Where to put the swapfile
 SWAPFILE="/mnt/.rw/swapfile"
@@ -166,8 +167,20 @@ if [ ! -f /etc/cron.daily/reboot ]; then
 	cat <<EOF > /etc/cron.daily/reboot
 #!/bin/bash
 
+# Get the local version
+LOCAL_VERSION=\$(cat /var/log/dumbq.version 2>/dev/null)
+[ -z "\$LOCAL_VERSION" ] && LOCAL_VERSION=1
+
+# Get the upstream version
+UPSTREAM_VERSION=\$(cat ${DUMBQ_VERSION_FLAG} 2>/dev/null)
+[ -z "\$UPSTREAM_VERSION" ] && UPSTREAM_VERSION=1
+
+# Do not reboot if upstream is not newer
+[ \${UPSTREAM_VERSION} -le \${LOCAL_VERSION} ] && exit 0
+cp ${DUMBQ_VERSION_FLAG} /var/log/dumbq.version
+
 # Reboot banner
-wall "A scheduled daily reboot will begin promptly"
+wall "Rebooting to apply hotfixes"
 
 # Stop status tty
 initctl stop dumbq-status CONSOLE=2
