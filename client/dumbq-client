@@ -435,11 +435,11 @@ function start_container {
     # Get a project name
     local CONTAINER_UUID="$(uuidgen)"
     local CONTAINER_NAME="${P_NAME}-${CONTAINER_UUID}"
-    local CONTAIENR_RUN="/cvmfs/${P_SCRIPT}"
+    local CONTAINER_RUN="/cvmfs/${P_SCRIPT}"
 
     # Prepare cernvm-fork cmdline
     local CMDLINE="${CERNVM_FORK_BIN} ${CONTAINER_NAME} -n -d -f"
-    CMDLINE="${CMDLINE} --run=${CONTAIENR_RUN}"
+    CMDLINE="${CMDLINE} --run=${CONTAINER_RUN}"
     CMDLINE="${CMDLINE} --cvmfs=${P_REPOS}"
     CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.limit_in_bytes = ${P_QUOTA_MEM}K'"
     CMDLINE="${CMDLINE} -o 'lxc.cgroup.memory.memsw.limit_in_bytes = ${P_QUOTA_SWAP}K'"
