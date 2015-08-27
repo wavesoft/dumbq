@@ -25,11 +25,13 @@ import re
 import shutil
 import time
 import string
+import sys
 import json
 
 from argparse import ArgumentParser
 from subprocess import check_output, call, DEVNULL
 from string import lstrip
+from multiprocessing import Process
 from uuid import uuid4
 from random import randint
 
@@ -58,14 +60,14 @@ class ConsoleLogger(logging.getLoggerClass()):
                                  hw_info.total_swap))
 
         self.logger.info("Reserving {0} for containers"
-                         .format(hw_info.reserved_ttys))
+                         .format(hw_info.tty_range))
 
 
 class HardwareInfo:
 
     def __init__(self, config):
         """Get cpu, memory and other info about host's hardware."""
-        self.host_uuid = self._get_host_identifier()
+        self.host_uuid = self.get_host_identifier()
         self.uuid_file = config["uuid_file"]
         self.local_cernvm_config = config["local_cernvm_config"]
 
@@ -84,17 +86,15 @@ class HardwareInfo:
         self.base_tty = self.config["base_tty"]
 
         # Calculate how many ttys need the projects
-        if self.base_tty > 0:
-            if hw_info.number_cores == 1:
-                self.reserved_ttys = "tty" + str(self.base_tty)
-            else:
-                self.max_tty = self.base_tty + self.number_cores - 1
-                self.reserved_ttys = ("tty[{0}-{1}]"
-                                      .format(self.base_tty, self.max_tty))
-        else:
+        if self.base_tty > 0 and hw_info.number_cores == 1:
             self.max_tty = self.base_tty + self.number_cores
+            self.tty_range = "tty" + str(self.base_tty)
+        elif self.base_tty > 0:
+            self.max_tty = self.base_tty + self.number_cores - 1
+            self.tty_range = "tty[{0}-{1}]".format(self.base_tty,
+                                                   self.max_tty)
 
-    def _get_host_identifier(self):
+    def get_host_identifier(self):
         """Get UUID from CernVM/standard file or create one."""
         def uuid_from_cernvm():
             # Get value of uuid from CERNVM file
@@ -102,7 +102,6 @@ class HardwareInfo:
                 with open(self.local_cernvm_config, "r") as c:
                     for line in c.readlines():
                         if "CERNVM_UUID" in line:
-                            # UUID value found
                             return line.split("=")[1]
 
         def uuid_from_file():
@@ -119,11 +118,10 @@ class HardwareInfo:
                     with open(self.uuid_file, "r") as f:
                         return f.readline()
 
-        return uuid_from_cernvm() or uuid_from_file() or None
+        return uuid_from_cernvm() or uuid_from_file()
 
     @staticmethod
     def _total_value_from_row(row_to_parse):
-        # Total value is in the second column
         return int(row_to_parse.split()[1])
 
 
@@ -131,14 +129,12 @@ class DumbqSetup:
 
     def __init__(self, config, hw_info, logger):
         self.logger = logger
+        self.hw_info = hw_info
 
         # Dumbq-related variables
         self.dumbq_dir = self.config["dumbq_dir"]
         self.www_dir = self.config["www_dir"]
         self.dumbq_folders = None
-
-        # Get hardware details
-        self.hw_info = hw_info
 
     def setup_config(self):
         # Define Dumbq folder
@@ -169,9 +165,7 @@ class DumbqSetup:
         create_dir_if_nonexistent(self.www_dir, mode=0555)
 
     def setup(self):
-        """Set up all the environment.
-
-        This is a key step and the order of the operations matter."""
+        """Set up all the environment in the proper order."""
         self.setup_config()
         self.setup_dumbq_folders()
         self.setup_logger()
@@ -295,9 +289,8 @@ class ProjectHub:
         shared, guest = None, None
 
         if self.shared_option:
+            # Get options and strip first '/' to mount relatively
             shared, guest = self.shared_option.split('=')
-
-            # Strip heading '/' to mount relatively to the path
             guest = lstrip(guest, '/')
 
             # If the shared file does not exists, disable options
@@ -312,7 +305,6 @@ class ProjectHub:
                     self.valid_format.match(l) or
                     not self.escapes_from_cvmfs.match(l))
 
-        # Check validity of every project
         valid_projects = filter(project_parser, lines)
         return valid_projects > 0
 
@@ -323,12 +315,16 @@ class ProjectManager:
         self.hw_info = hw_info
         self.config = config
         self.logger = logger
+
         self.dumbq_dir = config["dumbq_dir"]
         self.run_dir = config["dumbq_rundir"]
         self.tty_dir = config["dumbq_ttydir"]
-        self.base_tty = config["base_tty"]
         self.www_dir = config["www_dir"]
+        self.cernvm_fork_bin = config["cernvm_fork_bin"]
         self.envvars = []
+
+        self.base_tty = self.hw_info.base_tty
+        self.max_tty = self.hw_info.max_tty
 
         # Project information
         self.index_filename = self.www_dir + os.sep + "index.json"
@@ -345,10 +341,8 @@ class ProjectManager:
         self.project_hub.setup()
 
     def pick_project(self):
-        """
-        Pick a project by rolling a dice and checking the chances
-        of being selected. Return the specification of the project.
-        """
+        """Pick a project by rolling a dice and checking the chances
+        of being selected. Return the specification of the project."""
         winner = None
         sum_chance = 0
         found = False
@@ -388,7 +382,6 @@ class ProjectManager:
 
     def open_tty(self, container_name):
         """Find a free tty for the given container. Return boolean."""
-
         def extract_tty_id(filename):
             match = self.extract_id_tty.match(filename)
             return match if not match else match.group(0)
@@ -397,10 +390,8 @@ class ProjectManager:
             return self.tty_dir + os.sep + "tty" + tty_id
 
         def read_tty_pid(tty_filepath):
-            with ignored(IOError):
-                with open(tty_filepath, "r") as f:
-                    return f.readline().split()[0]
-            return None
+            with open(tty_filepath, "r") as f:
+                return f.readline().split()[0]
 
         def is_alive(pid):
             try:
@@ -410,64 +401,81 @@ class ProjectManager:
             else:
                 return True
 
-        def remove_tty_file(filepath):
-            try:
-                os.remove(filepath)
-            except (OSError, IOError):
-                self.logger(self.feedback["tty_file_removal"]
-                            .format(tty_id))
+        def write_content_to_tty_file(tty_id):
+            new_tty_filepath = filepath_from_tty_id(tty_id)
+            with open(new_tty_filepath, "w+") as f:
+                f.write("{0} {1}".format(os.getpid(), container_name))
 
-        def start_console_daemon(tty_id):
+        def remove_tty_flag(tty_id):
+            try:
+                os.remove(filepath_from_tty_id(tty_id))
+            except (OSError, IOError):
+                self.logger.error(self.feedback["tty_file_removal"]
+                                  .format(tty_id))
+
+        def start_console_daemon(tty_id, container_name):
             self.logger.info(self.feedback["reserving_tty"]
                              .format(tty_id, container_name))
-            new_tty_filepath = filepath_from_tty_id(tty_id)
-            # TODO Finish start_console_daemon
+
+            openvt_command = ["openvt", "-w", "-f", "-c", tty_id, "--",
+                              self.cernvm_fork_bin, container_name, "-C"]
+            clear_command = ["clear"]
+            tty_device = "/dev/tty{}".format(tty_id)
+            tty = open(tty_device, "w")
+
+            # Write content info to tty file and clear tty
+            write_content_to_tty_file(tty_id)
+            call(clear_command, stdout=tty)
+            container_is_active = True
+
+            while container_is_active:
+                # Change stdout to tty and print feedback
+                sys.stdout = tty
+                print(self.feedback["connecting_tty"].format(container_name))
+
+                # Call openvt every 2 seconds unless container went away
+                call(openvt_command)
+                active_containers = self.get_active_containers()
+                container_is_active = container_name in active_containers()
+                time.sleep(2)
+
+            # Clear again and remove flag file
+            call(clear_command, stdout=tty)
+            remove_tty_flag()
 
         # Get existing tty files
         tty_files = os.listdir(self.tty_dir)
 
         # Extract id from filenames
-        tty_ids = map(extract_tty_id, tty_files)
-
-        # Check if there are ttys in use
-        sorted_tty_ids = sorted(tty_ids)
-        next_id = None
+        tty_ids = set(map(extract_tty_id, tty_files))
+        free_id = None
 
         # Find free tty among the used ttys
-        for tty_id in sorted_tty_ids:
-            # If don't match, free tty
-            if next_id and tty_id != next_id:
-                next_id = tty_id
+        for tty_id in xrange(self.base_tty, self.max_tty + 1):
+            # If not in set, tty_id available
+            if tty_id not in tty_ids:
+                free_id = tty_id
                 break
-
-            tty_filepath = filepath_from_tty_id(tty_id)
 
             # If container is dead, reuse that tty
+            tty_filepath = filepath_from_tty_id(tty_id)
             if not is_alive(read_tty_pid(tty_filepath)):
-                remove_tty_file(tty_filepath)
+                remove_tty_flag(tty_id)
                 break
 
-            next_id = tty_id + 1
+        if not free_id:
+            self.logger.error(self.feedback["no_free_tty"],
+                              format(container_name))
 
-        if not next_id:
-            next_id = 0
-
-        # Check if it's out of the allowed tty range
-        if next_id > self.hw_info.max_tty:
-            self.logger.error(self.feedback["no_free_tty"]
-                              .format(container_name))
-            allocated_tty = False
-        else:
-            allocated_tty = start_console_daemon(next_id)
-
-        return allocated_tty
+        start_terminal = Process(target=start_console_daemon,
+                                 args=(free_id, container_name))
+        return free_id and start_terminal.start()
 
     def run_project(self):
         def start_container(project_config):
             # Basic command configuration
             cernvm_fork_command = [
-                self.config["cernvm_fork_bin"],
-                container_name, "-n", "-d", "-f",
+                self.cernvm_fork_bin, container_name, "-n", "-d", "-f",
                 "--run={}".format(container_run),
                 "--cvmfs={}".format(project_repos),
                 "-o", ("'lxc.cgroup.memory.limit_in_bytes = {}K'"
@@ -531,7 +539,6 @@ class ProjectManager:
     def stop_project(self, container_name):
         """Destroy project's container and its assigned resources."""
         def destroy_container():
-            # Destroy container and return exit code
             action = [self.cernvm_fork_bin, container_name, "-D"]
             return call(action, stdout=DEVNULL)
 
@@ -546,8 +553,8 @@ class ProjectManager:
             os.remove(run_filepath)
 
             # Remove host shared mount directory
-            project_www_folder = (self.www_dir + os.sep +
-                                  "inst-{0}".format(container_name))
+            instance_name = "inst-{0}".format(container_name)
+            project_www_folder = self.www_dir + os.sep + instance_name
             shutil.rmtree(project_www_folder, ignore_errors=True)
 
         else:
@@ -556,74 +563,60 @@ class ProjectManager:
         return is_success
 
     def get_containers(self):
-        """Get containers - active and passive."""
-        return check_output(["lxc-ls"]).split("\n")
+        """Get a set of containers - active and passive."""
+        return set(check_output(["lxc-ls"]).split("\n"))
 
     def get_containers_in_run_dir(self):
-        """Get containers folders in the run dir."""
-        return os.listdir(self.run_dir)
+        """Get a set of containers' folders in the run dir."""
+        return set(os.listdir(self.run_dir))
 
     def get_active_containers(self):
-        """Get active containers."""
-        return check_output(["lxc-ls", "--active"]).split("\n")
+        """Get a set of active containers."""
+        return set(check_output(["lxc-ls", "--active"]).split("\n"))
 
     def has_free_space(self):
         """Check the resources to run another project."""
         active_containers = self.get_active_containers()
         needs_update = False
 
-        # Iterate over any managed container
+        # Check which containers are inactive
         for container_name in self.get_containers_in_run_dir():
             if container_name not in active_containers:
-                # Found inactive container
                 self.logger.info(self.feedback["inactive_container"]
                                  .format(container_name))
 
-                # Stop and clean container to free resources
+                # Stop and free resources, update index if success
                 destroyed = self.stop_project(container_name)
-
-                # Index needs update if destroyed
                 needs_update = needs_update or destroyed
 
+        # Update only if needed
         if needs_update:
             self.update_projects_info()
 
-        # Any space has been freed?
         return needs_update
 
     def update_projects_info(self):
-        """Thread-safe update the index in the public WWW folder.
+        """Thread-safe update of the index in the public WWW folder.
 
-        The index file represents the current state of
-        the projects and points to its resources and logs.
-        """
-
-        # Time of update
-        now = str(time.time()).split(".")[0]
-
+        Index represents the state, resources and logs of the projects."""
         def jsonify(**vars):
             return json.dumps(vars)
 
         def running_instances():
             for container_name in self.get_containers_in_run_dir():
-                # The run file is named as the container
                 filepath = self.path_of_runfile(container_name)
 
+                # Get project description & remove newlines
                 with open(filepath, "r") as f:
-                    # Get project description
                     content = f.read()
-                    # Return and remove newlines
                     yield content.translate(None, "\n")
 
         def get_uptime():
-            uptime = None
-
             # Read uptime and replace spaces by commas
             with open("/proc/uptime", "r") as f:
-                uptime_seconds = f.readline()
-                uptime = uptime_seconds.translate(string.maketrans(' ', ','))
-
-            return uptime
+                seconds = f.readline()
+                return seconds.translate(string.maketrans(' ', ','))
+            return None
 
         def get_load():
             return check_output(["uptime"]).split("load average: ")[1]
@@ -634,6 +627,8 @@ class ProjectManager:
                 if not hours:
                     hours = 0
 
+        now = str(time.time()).split(".")[0]
+
         # Get updated index from current values
         updated_index = jsonify(instances=running_instances(),
                                 updated=now,
@@ -643,11 +638,9 @@ class ProjectManager:
                                 load=get_load(),
                                 runhours=get_run_hours())
 
-        # Write updated contents to new file (truncating)
+        # Overwrite updated contents to new file and update old
         with open(self.temp_index_filename, "w+") as f:
             f.write(updated_index)
-
-        # Update old file with new file
         os.rename(self.temp_index_filename, self.index_filename)
 
     def cleanup_environment(self):
@@ -655,11 +648,11 @@ class ProjectManager:
         needs_update = False
 
         # Get flags of containers in the running folder
-        containers_in_run_dir = set(self.get_containers_in_run_dir())
+        containers_in_run_dir = self.get_containers_in_run_dir()
 
         # Get inactive containers
-        total_containers = set(self.get_containers())
-        active_containers = set(self.get_active_containers())
+        total_containers = self.get_containers()
+        active_containers = self.get_active_containers()
         inactive_containers = total_containers - active_containers
 
         # Iterate over all the stale containers
@@ -671,6 +664,7 @@ class ProjectManager:
                 self.logger.info(self.feedback["clean_container"]
                                  .format(stale_container_name))
 
+                # Stop project and check for update
                 stopped = self.stop_project(stale_container_name)
                 needs_update = needs_update or stopped
 
@@ -755,6 +749,7 @@ feedback = {
     "inactive_container":       "Found inactive container {}",
     "no_free_tty":              "There is no free tty for container {}!",
     "reserving_tty":            "Reserving tty{0} for container{1}",
+    "connecting_tty":           "Connecting to {0}...",
     "override_chance":          "Overriding chance to {0}% for project {1}",
     "incomplete_overall_chance": "The sum of the project chances is not 100!"
 }
