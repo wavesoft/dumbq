@@ -1,5 +1,6 @@
-#!/bin/bash
-#
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 # DumbQ 2.0 - A lightweight job scheduler
 # Copyright (C) 2015-2016  Ioannis Charalampidis, Jorge Vicente Cantero, CERN
 
@@ -16,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
-#
 
 import logging
 import multiprocessing
@@ -28,20 +28,26 @@ import string
 import sys
 
 from argparse import ArgumentParser
-from subprocess import check_output, call, DEVNULL, CalledProcessError
+from subprocess import check_output, call, CalledProcessError
 from string import lstrip
 from multiprocessing import Process
 from uuid import uuid4
 from random import randint
 
-from utils.utils import error_and_exit, ignored, \
-    create_dir_if_nonexistent, jsonify
+from utils.utils \
+    import error_and_exit, ignored, create_dir_if_nonexistent, jsonify
+
+"""Port of DumbQ 1.0, originally written in Bash by Ioannis Charalampidis."""
+
+__author__ = "Jorge Vicente Cantero <jorgevc@fastmail.es>"
+
+DEVNULL = os.open(os.devnull, os.O_RDWR)
 
 
 class ConsoleLogger(logging.getLoggerClass()):
 
     def __init__(self):
-        logging.getLoggerClass().__init__("Dumbq")
+        logging.getLoggerClass().__init__("DumbQ")
 
     def setup(self, config, hw_info):
         """Set up the logger and show basic information."""
@@ -205,7 +211,8 @@ class ProjectHub:
     def fetch_preference_file(self):
         """Get the content of the preference config file which
         overrides the chances of the projects defined in the
-        main config file."""
+        main config file.
+        """
         self.preference_file = self._read_config(self.config_preference)
         self.preferred_chances = {}
 
@@ -240,9 +247,6 @@ class ProjectHub:
         self.config["shared_metadata_file"] = self.shared_metadata_file
         self.config["guest_metadata_file"] = self.guest_metadata_file
 
-    def setup(self):
-        """Execution flow of the ProjectHub."""
-
     def _read_config(self, config_file):
         existing_file = None
 
@@ -264,7 +268,8 @@ class ProjectHub:
         """Get both shared and guest metadata files from the option.
 
         The metadata file is used by several instances of VMs
-        to have access to variables predefined by the client."""
+        to have access to variables predefined by the client.
+        """
         shared, guest = None, None
 
         if self.shared_option:
@@ -291,6 +296,7 @@ class ProjectHub:
 class ProjectManager:
 
     def __init__(self, hw_info, config, logger):
+        self.project_hub = project_hub
         self.hw_info = hw_info
         self.config = config
         self.feedback = feedback
@@ -318,10 +324,6 @@ class ProjectManager:
         # Regexp to get envars
         self.get_vars_regexp = re.compile("^[^=]+=(.*)")
         self.extract_id_tty = re.compile(".*tty([0-9]+)")
-
-        # Get configuration of projects
-        self.project_hub = ProjectHub()
-        self.project_hub.setup()
 
     def pick_project(self):
         """Pick a project by rolling a dice and checking the chances
@@ -743,6 +745,8 @@ class ProjectManager:
 config = {
     "config_ssl_certs":     "",
     "config_ssl_capath":    "",
+    "config_preference":    "",
+    "config_ssl_capath":    "",
     "shared_mount":         "",
     "bind_mount":           "",
     "base_tty":             0,
@@ -824,10 +828,6 @@ if __name__ == "__init__":
     # TODO Review argument parse, missing options as store
     config.update(vars(parser.parse_args()))
 
-    # --------------------------------------------
-    # Start the real execution flow of the program
-    # --------------------------------------------
-
     logger = ConsoleLogger()
     hw_info = HardwareInfo()
 
@@ -843,7 +843,8 @@ if __name__ == "__init__":
     project_hub.fetch_preference_file()
     project_hub.parse_shared_and_guest_metadata_file()
 
-    project_manager = ProjectManager(hw_info, config, feedback, logger)
+    project_manager = ProjectManager(project_hub, hw_info,
+                                     config, feedback, logger)
     project_manager.read_environment_variables()
     project_manager.cleanup_environment()
     project_manager.update_projects_info()
