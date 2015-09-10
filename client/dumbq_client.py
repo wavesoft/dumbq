@@ -28,20 +28,19 @@ import string
 import sys
 
 from argparse import ArgumentParser
-from subprocess import check_output, call, CalledProcessError
 from string import lstrip
 from multiprocessing import Process
 from uuid import uuid4
 from random import randint
+from subprocess import check_output, call, CalledProcessError
 
 from utils.utils \
-    import error_and_exit, ignored, create_dir_if_nonexistent, jsonify
+    import error_and_exit, create_dir_if_nonexistent, jsonify, DEVNULL
+from utils.utils import ignored, logged
 
 """Port of DumbQ 1.0, originally written in Bash by Ioannis Charalampidis."""
 
 __author__ = "Jorge Vicente Cantero <jorgevc@fastmail.es>"
-
-DEVNULL = os.open(os.devnull, os.O_RDWR)
 
 
 class ConsoleLogger(logging.getLoggerClass()):
@@ -88,9 +87,9 @@ class HardwareInfo:
         self.slot_mem = self.total_memory / self.slot_cpu
         self.slot_swap = self.total_swap / self.slot_cpu
 
+        # Calculate how many ttys need the projects
         self.base_tty = self.config["base_tty"]
 
-        # Calculate how many ttys need the projects
         if self.base_tty > 0 and hw_info.number_cores == 1:
             self.max_tty = self.base_tty + self.number_cores
             self.tty_range = "tty" + str(self.base_tty)
@@ -316,8 +315,8 @@ class ProjectManager:
         self.max_tty = self.hw_info.max_tty
 
         # Project information
-        self.index_filename = self.www_dir + os.sep + "index.json"
-        self.temp_index_filename = self.www_dir + os.sep + "index.new"
+        self.index_filename = os.path.join(self.www_dir, "index.json")
+        self.temp_index_filename = os.path.join(self.www_dir, "index.new")
         self.version = config["version"]
         self.host_uuid = hw_info.host_uuid
 
@@ -344,10 +343,13 @@ class ProjectManager:
             options = specification[1]
             project_chance = options.split(",")[0]
 
-            # Reassign if the there is a preference for the project
-            if self.project_hub.preference_for(project_name):
+            # If preference chance, use it
+            preferred_chance = self.project_hub.preference_for(project_name)
+            if preferred_chance:
                 self.logger.info(self.feedback["override_chance"]
                                  .format(project_chance, project_name))
+                project_chance = preferred_chance
+
             sum_chance += project_chance
 
             # Assign a winner when choice is below sum_chance
@@ -363,7 +365,7 @@ class ProjectManager:
 
     def path_of_runfile(self, container_name):
         """Return abspath of the run file (flag) of a given container."""
-        return self.run_dir + os.sep + container_name
+        return os.path.join(self.run_dir, container_name)
 
     def open_tty(self, container_name):
         """Find a free tty for the given container. Return boolean."""
@@ -372,7 +374,7 @@ class ProjectManager:
             return match if not match else match.group(0)
 
         def filepath_from_tty_id(tty_id):
-            return self.tty_dir + os.sep + "tty" + tty_id
+            return os.path.join(self.tty_dir, "tty" + tty_id)
 
         def read_pid(tty_filepath):
             with open(tty_filepath, "r") as f:
@@ -388,7 +390,7 @@ class ProjectManager:
 
         def write_content_to_tty_file(tty_id, container_name):
             new_tty_fp = filepath_from_tty_id(tty_id)
-            with open(new_tty_fp, "w+") as f:
+            with open(new_tty_fp, "w") as f:
                 f.write("{0} {1}".format(os.getpid(), container_name))
 
         def remove_tty_flag(tty_id):
@@ -531,7 +533,7 @@ class ProjectManager:
             )
 
             flag_filepath = "{}/{}".format(self.run_dir, container_name)
-            with open(flag_filepath, "w+") as f:
+            with open(flag_filepath, "w") as f:
                 f.write(run_file_contents)
 
             if self.www_dir:
@@ -603,7 +605,7 @@ class ProjectManager:
 
             # Remove host shared mount directory
             instance_name = "inst-{0}".format(container_name)
-            project_www_folder = self.www_dir + os.sep + instance_name
+            project_www_folder = os.path.join(self.www_dir, instance_name)
             shutil.rmtree(project_www_folder, ignore_errors=True)
         else:
             is_success = False
@@ -685,7 +687,7 @@ class ProjectManager:
                                 runhours=get_run_hours())
 
         # Overwrite updated contents to new file and update old
-        with open(self.temp_index_filename, "w+") as f:
+        with open(self.temp_index_filename, "w") as f:
             f.write(updated_index)
         os.rename(self.temp_index_filename, self.index_filename)
 

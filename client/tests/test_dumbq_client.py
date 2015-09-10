@@ -20,24 +20,33 @@
 import os
 import sys
 import unittest
+import multiprocessing
 
 from ..dumbq_client import config
+from ..dumbq_client import HardwareInfo
 
 
-class HardwareInfoTest(unittest.TestCase):
+class BaseDumbqTest(unittest.TestCase):
 
     """Test class to check that Dumbq gets hardware info correctly."""
 
     def setUp(self):
         """Set up the environment before the tests."""
+        self.hardware_info = HardwareInfo()
         self.config = config
-
-    def test(self):
-        assert config is not None
 
     def tearDown(self):
         """Destroy environment."""
+        self.hardware_info = None
         self.config = None
+
+
+class HardwareInfoTest(BaseDumbqTest):
+
+    """Test class to check that Dumbq gets hardware info correctly."""
+
+    def test_cpu_count(self):
+        assert self.hardware_info.number_cores == multiprocessing.cpu_count()
 
 
 if __name__ == '__main__':
