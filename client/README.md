@@ -57,3 +57,8 @@ The DumbQ Client has the following command-line syntax:
         <td>Specify the metadata file to be shared between host and guest.</td>
     </tr>
 </table>
+
+## Testing
+If you want to contribute and test your code, just execute ``./run-tests.sh``.
+This will execute DumbQ Client within CernVM using __Docker__ and run a test
+suite. Please, install Docker in case you haven't before.

@@ -1,7 +1,6 @@
-#!/bin/bash -
 # -*- coding: utf-8 -*-
 
-# DumbQ 2.0 - A lightweight job scheduler
+# DumbQ 2.0 - A lightweight job scheduler - Testing docker platform
 # Copyright (C) 2015-2016  Jorge Vicente Cantero, CERN
 
 # This program is free software; you can redistribute it and/or
@@ -18,11 +17,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
-##############################################
-# Set up docker and test Dumbq within CernVM #
-##############################################
-./setup-docker.sh && \
-	echo -e "\nBuild dumbq environment within CernVM\n"
-	/usr/bin/docker build -t dumbq-client . && \
-	echo -e "\nRun test suite...\n"
-	/usr/bin/docker run dumbq-client
+# Use manually installed Cernvm
+FROM cernvm
+
+ENV PYTHONPATH $PYTHONPATH:/dumbq-client
+
+# Add sources to `code` and work there:
+WORKDIR /dumbq-client
+ADD . /dumbq-client
+
+# Install some prerequisites and run tests in CernVM
+CMD  ["/init", "python /dumbq-client/tests/test_dumbq_client.py"]

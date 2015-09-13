@@ -18,11 +18,25 @@
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
-##############################################
-# Set up docker and test Dumbq within CernVM #
-##############################################
-./setup-docker.sh && \
-	echo -e "\nBuild dumbq environment within CernVM\n"
-	/usr/bin/docker build -t dumbq-client . && \
-	echo -e "\nRun test suite...\n"
-	/usr/bin/docker run dumbq-client
+######################################################
+# Script to setup the docker environment with CernVM #
+######################################################
+
+IMAGE_FILE="cvm-docker.2.1-1.cernvm.x86_64.tar"
+IMAGE_NAME="cernvm/dumbq-test"
+CERNVM_IMAGE_URL="http://cernvm.cern.ch/releases/testing/$IMAGE_FILE"
+
+if [[ ! -f $IMAGE_FILE ]]; then
+	echo "Downloading image..."
+	curl -s $CERNVM_IMAGE_URL > $IMAGE_FILE
+fi
+
+if [[ $(docker images | grep $IMAGE_NAME) == "" ]]; then
+	echo "Importing CernVM to your docker images..."
+	cat $IMAGE_FILE | docker import - cernvm/dumbq-test
+fi
+
+if [[ $? != 0 ]]; then
+	echo -e "\nDocker couldn't import CernVM.\n"
+	echo "Make sure you have the right permissions. Otherwise, run with sudo."
+fi

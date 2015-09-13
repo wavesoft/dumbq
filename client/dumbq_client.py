@@ -32,55 +32,75 @@ from string import lstrip
 from multiprocessing import Process
 from uuid import uuid4
 from random import randint
+
+# Do Monkey path if using Python <= 2.6
+import subprocess
+if "check_output" not in dir(subprocess):
+    from utils.utils import check_output as patch
+    subprocess.check_output = patch
+
 from subprocess import check_output, call, CalledProcessError
 
-from utils.utils \
-    import error_and_exit, create_dir_if_nonexistent, jsonify, DEVNULL
-from utils.utils import ignored, logged
+from utils.utils import create_dir_if_nonexistent, jsonify, DEVNULL
+from utils.utils import ignored, error_and_exit
+from utils.utils import read_from_file, write_to_file
+
 
 """Port of DumbQ 1.0, originally written in Bash by Ioannis Charalampidis."""
 
 __author__ = "Jorge Vicente Cantero <jorgevc@fastmail.es>"
 
+base_logger_class = logging.getLoggerClass()
 
-class ConsoleLogger(logging.getLoggerClass()):
 
-    def __init__(self):
-        logging.getLoggerClass().__init__("DumbQ")
+class ConsoleLogger(base_logger_class):
 
-    def setup(self, config, hw_info):
+    def __init__(self, name="DumbQ"):
+        base_logger_class.__init__(self, name)
+        self.setLevel(logging.DEBUG)
+
+    def setup(self, config, hw_info, testing=False):
         """Set up the logger and show basic information."""
-        self.logger.info("Dumbq Client version {0} started"
-                         .format(self.config["version"]))
+        if not testing:
+            self.addHandler(logging.StreamHandler())
+        else:
+            test_filename = config["test_logfile"]
+            self.addHandler(logging.FileHandler(test_filename))
 
-        self.logger.info("Using configuration from {0}"
-                         .format(self.config["config_source"]))
+        self.info("Dumbq Client version {0} started"
+                  .format(config["version"]))
 
-        self.logger.info("Allocating {0} slot(s), with cpu={1}, "
-                         "mem={2}Kb, swap=${3}Kb"
-                         .format(hw_info.number_cores,
-                                 hw_info.slot_cpu,
-                                 hw_info.total_memory,
-                                 hw_info.total_swap))
+        self.info("Using configuration from {0}"
+                  .format(config["config_source"]))
 
-        self.logger.info("Reserving {0} for containers"
-                         .format(hw_info.tty_range))
+        self.info("Allocating {0} slot(s), with cpu={1}, "
+                  "mem={2}Kb, swap={3}Kb"
+                  .format(hw_info.number_cores,
+                          hw_info.slot_cpu,
+                          hw_info.total_memory,
+                          hw_info.total_swap))
+
+        if hw_info.tty_range:
+            self.info("Reserving {0} for containers"
+                      .format(hw_info.tty_range))
+
+logging.setLoggerClass(ConsoleLogger)
 
 
 class HardwareInfo:
 
     def __init__(self, config):
         """Get cpu, memory and other info about host's hardware."""
-        self.host_uuid = self.get_host_identifier()
         self.uuid_file = config["uuid_file"]
         self.local_cernvm_config = config["local_cernvm_config"]
+        self.host_uuid = self.get_host_identifier()
 
         self.number_cores = multiprocessing.cpu_count()
 
         # Read total memory and swap from `free` in KB
         free_output = check_output(["free", "-k"]).split("\n")
-        self.total_memory = self._total_value_from_row(free_output[1])
-        self.total_swap = self._total_value_from_row(free_output[2])
+        self.total_memory, self.total_swap = \
+            self.get_memory_and_swap(free_output)
 
         # Calculate slots
         self.slot_cpu = 1
@@ -88,43 +108,60 @@ class HardwareInfo:
         self.slot_swap = self.total_swap / self.slot_cpu
 
         # Calculate how many ttys need the projects
-        self.base_tty = self.config["base_tty"]
+        self.base_tty = config["base_tty"]
 
         if self.base_tty > 0 and hw_info.number_cores == 1:
             self.max_tty = self.base_tty + self.number_cores
-            self.tty_range = "tty" + str(self.base_tty)
+            self.tty_range = "tty{0}".format(self.base_tty)
         elif self.base_tty > 0:
-            self.max_tty = self.base_tty + self.number_cores - 1
+            self.max_tty = self.base_tty + (self.number_cores - 1)
             self.tty_range = "tty[{0}-{1}]".format(self.base_tty,
                                                    self.max_tty)
+        else:
+            # Don't display default -> tty0 + cpu cores
+            self.max_tty = self.base_tty + self.number_cores
+            self.tty_range = None
 
     def get_host_identifier(self):
-        """Get UUID from CernVM/standard file or create one."""
+        """Get UUID from CernVM, uuid file or create a new one."""
         def uuid_from_cernvm():
-            with ignored(IOError):
+            with ignored(EnvironmentError):
                 with open(self.local_cernvm_config, "r") as c:
                     for line in c.readlines():
-                        if "CERNVM_UUID" in line:
-                            return line.split("=")[1]
+                        key, value = line.split("=")
+                        if key == "CERNVM_UUID":
+                            return value
 
         def uuid_from_file():
-            with ignored(IOError):
-                if not os.path.exists(self.uuid_file):
-                    # Generate a new UUID and save it
-                    new_uuid = uuid4()
-                    with open(self.uuid_file, "w") as f:
-                        f.write(new_uuid)
-                    return str(new_uuid)
-                else:
-                    # Get UUID from the existing file
-                    with open(self.uuid_file, "r") as f:
-                        return f.readline()
+            with ignored(EnvironmentError):
+                line = read_from_file(self.uuid_file)
+                return line if line else None
 
-        return uuid_from_cernvm() or uuid_from_file()
+        def genwrite_uuid():
+            # Generate a new UUID and save it
+            new_uuid = str(uuid4())
+            with ignored(EnvironmentError):
+                write_to_file(self.uuid_file, new_uuid)
+            return new_uuid
+
+        return uuid_from_cernvm() or uuid_from_file() or genwrite_uuid()
 
     @staticmethod
-    def _total_value_from_row(row_to_parse):
+    def _value_from_row(row_to_parse):
         return int(row_to_parse.split()[1])
+
+    @staticmethod
+    def get_memory_and_swap(free_output_lines):
+        regex = re.compile(r"^(Mem|Swap):[ \t]*([0-9]*)")
+
+        def silent_match(l):
+            match = re.match(regex, l)
+            return match.groups() if match else (None, None)
+
+        matches = map(silent_match, free_output_lines)
+        _, mem = filter(lambda m: m[0] == "Mem", matches).pop()
+        _, swap = filter(lambda m: m[0] == "Swap", matches).pop()
+        return int(mem) if mem else mem, int(swap) if swap else swap
 
 
 class DumbqSetup:
@@ -141,8 +178,8 @@ class DumbqSetup:
 
     def setup_config(self):
         """Define Dumbq folders and update the config with their paths."""
-        extensions = ["run", "tty", "preference.conf"]
-        dumbq_paths = os.path.join(self.dumbq_dir, extensions)
+        fs = ["run", "tty", "preference.conf"]
+        dumbq_paths = map(lambda f: os.path.join(self.dumbq_dir, f), fs)
 
         self.config["dumbq_rundir"] = dumbq_paths[0]
         self.config["dumbq_ttydir"] = dumbq_paths[1]
@@ -156,9 +193,9 @@ class DumbqSetup:
         """Make sure dumbq folders exist. Otherwise, create them."""
         map(create_dir_if_nonexistent, self.dumbq_folders)
 
-    def setup_logger(self):
+    def setup_logger(self, testing=False):
         """Set up the logger and the handlers of the logs."""
-        self.logger.setup(self.config, self.hw_info)
+        self.logger.setup(self.config, self.hw_info, testing)
 
     def setup_public_www(self):
         """Create public WWW folder and make it readable."""
@@ -175,7 +212,7 @@ class ProjectHub:
         # Default configuration sources
         self.config_source = config["config_source"]
         self.config_file = config["config_file"]
-        self.config_preference = config["config_preference"]
+        self.config_preference = config["dumbq_preference_file"]
 
         # Regexps to validate the content of the config files
         self.there_are_comments = re.compile("^[ \t]*#|^[ \t]*$")
@@ -227,13 +264,12 @@ class ProjectHub:
         preference_for_project = self.preferred_chances[project]
         best = preference_for_all or preference_for_project
 
-        # In case both exist, get the best assigned chance
+        # In case both exist, return the best assigned chance
         if preference_for_all and preference_for_project:
             if preference_for_all > preference_for_project:
                 best = preference_for_all
             else:
                 best = preference_for_project
-
         return best
 
     def get_projects(self):
@@ -416,7 +452,7 @@ class ProjectManager:
             openvt_command = ["openvt", "-w", "-f", "-c", tty_id, "--",
                               self.cernvm_fork_bin, container_name, "-C"]
             clear_command = ["clear"]
-            tty_device = "/dev/tty{}".format(tty_id)
+            tty_device = "/dev/tty{0}".format(tty_id)
             tty = open(tty_device, "w")
 
             # Write content info to tty file and clear tty
@@ -425,7 +461,7 @@ class ProjectManager:
             container_is_active = True
 
             while container_is_active:
-                # Change stdout to tty and print feedback
+                # Change stdout to tty and print feedback to tty
                 sys.stdout = tty
                 print(self.feedback["connecting_tty"].format(container_name))
 
@@ -462,17 +498,17 @@ class ProjectManager:
     def run_project(self):
         def start_container():
             """Start CernVM fork with the proper context."""
-            memory_option = "\'lxc.group.memory.limit_in_bytes = {}K\'"
-            swap_option = "\'lxc.group.memory.memsw.limit_in_bytes = {}K\'"
-            mount_entry_option = "\'lxc.mount.entry = {}\'"
-            metafile_option = "\'DUMBQ_METAFILE = /{}\'"
+            memory_option = "\'lxc.group.memory.limit_in_bytes = {0}K\'"
+            swap_option = "\'lxc.group.memory.memsw.limit_in_bytes = {0}K\'"
+            mount_entry_option = "\'lxc.mount.entry = {0}\'"
+            metafile_option = "\'DUMBQ_METAFILE = /{0}\'"
 
             # Basic command configuration
             cernvm_fork_command = [
                 self.cernvm_fork_bin, container_name,
                 "-n", "-d", "-f",
-                "--run={}".format(container_run),
-                "--cvmfs={}".format(project_repos),
+                "--run={0}".format(container_run),
+                "--cvmfs={0}".format(project_repos),
                 "-o", memory_option.format(quota_mem),
                 "-o", swap_option.format(quota_swap)
             ]
@@ -490,12 +526,12 @@ class ProjectManager:
             # Pass configuration environment variables
             for envvar in self.envars:
                 cernvm_fork_command.append(
-                    "-E", "'DUMBQ_{}'".format(envvar))
+                    "-E", "'DUMBQ_{0}'".format(envvar))
 
             cernvm_fork_command.extend([
-                "-E", "'DUMBQ_NAME={}'".format(project_name),
-                "-E", "'DUMBQ_UUID={}'".format(container_uuid),
-                "-E", "'DUMBQ_VMID={}'".format(self.host_uuid)
+                "-E", "'DUMBQ_NAME={0}'".format(project_name),
+                "-E", "'DUMBQ_UUID={0}'".format(container_uuid),
+                "-E", "'DUMBQ_VMID={0}'".format(self.host_uuid)
             ])
 
             # Append bind shares
@@ -518,21 +554,21 @@ class ProjectManager:
         def post_start_project():
             # Copy metadata file to guest
             if self.shared_meta_file:
-                path_to_copy = ("/mnt/.rw/containers/{}/root/{}"
+                path_to_copy = ("/mnt/.rw/containers/{0}/root/{0}"
                                 .format(container_name, self.guest_meta_file))
                 shutil.copy(self.shared_meta_file, path_to_copy)
 
             # Create run file for project and update projects info
             run_file_contents = jsonify(
                 uuid=container_uuid,
-                wwwroot="/inst-{}".format(container_name),
+                wwwroot="/inst-{0}".format(container_name),
                 project=project_name,
                 memory=quota_mem,
                 swap=quota_swap,
                 cpus=quota_cpu
             )
 
-            flag_filepath = "{}/{}".format(self.run_dir, container_name)
+            flag_filepath = "{0}/{0}".format(self.run_dir, container_name)
             with open(flag_filepath, "w") as f:
                 f.write(run_file_contents)
 
@@ -761,7 +797,8 @@ config = {
     "guest_shared_mount":   "/var/www/html",
     "www_dir":              "/var/www/html",
     "uuid_file":            "/var/lib/uuid",
-    "local_cervm_config":   "/etc/cernvm/default.conf",
+    "test_logfile":         "/var/lib/dumbq/testing.log",
+    "local_cernvm_config":   "/etc/cernvm/default.conf",
     "config_source":        "/cvmfs/sft.cern.ch/lcg/external/"
                             "experimental/dumbq/server/default.conf",
     "floppy_reader_bin":    "/cvmfs/sft.cern.ch/lcg/external/"
@@ -793,22 +830,22 @@ explanations = {
 feedback = {
     "destruction_error":        "Unable to destroy the container!",
     "missing_config":           "Could not fetch configuration file!",
-    "found_preference_file":    "Overriding project preference using {}",
-    "clean_container":          "Cleaning up stale container {}",
-    "inactive_container":       "Found inactive container {}",
-    "no_free_tty":              "There is no free tty for container {}!",
+    "found_preference_file":    "Overriding project preference using {0}",
+    "clean_container":          "Cleaning up stale container {0}",
+    "inactive_container":       "Found inactive container {0}",
+    "no_free_tty":              "There is no free tty for container {0}!",
     "reserving_tty":            "Reserving tty{0} for container{1}",
     "connecting_tty":           "Connecting to {0}...",
     "override_chance":          "Overriding chance to {0}% for project {1}",
     "incomplete_overall_chance": "The sum of the project chances is not 100!",
-    "starting_project":         "Starting project \'{}\'",
+    "starting_project":         "Starting project \'{0}\'",
     "cernvm_error":             "Unable to create a CernVM fork!",
     "free_slot":                "There is a free slot available"
 }
 
 if __name__ == "__init__":
     authors = " and ".join(("Ioannis Charalampidis", "Jorge Vicente Cantero"))
-    dumbq_headline = "Dumbq Client v2.0 - {}, CERN".format(authors)
+    dumbq_headline = "Dumbq Client v2.0 - {0}, CERN".format(authors)
 
     # Set up Command Line Interface and update config with values from CLI
     parser = ArgumentParser(dumbq_headline)
@@ -831,7 +868,7 @@ if __name__ == "__init__":
     config.update(vars(parser.parse_args()))
 
     logger = ConsoleLogger()
-    hw_info = HardwareInfo()
+    hw_info = HardwareInfo(config)
 
     dumbq_setup = DumbqSetup(hw_info, config, logger)
     dumbq_setup.setup_config()
