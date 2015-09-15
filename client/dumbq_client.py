@@ -18,6 +18,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
+"""Port of DumbQ 1.0, originally written in Bash by Ioannis Charalampidis."""
+
+__author__ = "Jorge Vicente Cantero <jorgevc@fastmail.es>"
+
 import logging
 import multiprocessing
 import os
@@ -42,13 +46,9 @@ if "check_output" not in dir(subprocess):
 from subprocess import check_output, call, CalledProcessError
 
 from utils.utils import create_dir_if_nonexistent, jsonify, DEVNULL
-from utils.utils import ignored, error_and_exit
+from utils.utils import ignored, error_and_exit, logged
+from utils.utils import safe_read_from_file, safe_write_to_file
 from utils.utils import read_from_file, write_to_file
-
-
-"""Port of DumbQ 1.0, originally written in Bash by Ioannis Charalampidis."""
-
-__author__ = "Jorge Vicente Cantero <jorgevc@fastmail.es>"
 
 base_logger_class = logging.getLoggerClass()
 
@@ -89,8 +89,10 @@ logging.setLoggerClass(ConsoleLogger)
 
 class HardwareInfo:
 
-    def __init__(self, config):
+    def __init__(self, config, feedback, logger):
         """Get cpu, memory and other info about host's hardware."""
+        self.logger = logger
+        self.feedback = feedback
         self.uuid_file = config["uuid_file"]
         self.local_cernvm_config = config["local_cernvm_config"]
         self.host_uuid = self.get_host_identifier()
@@ -101,6 +103,7 @@ class HardwareInfo:
         free_output = check_output(["free", "-k"]).split("\n")
         self.total_memory, self.total_swap = \
             self.get_memory_and_swap(free_output)
+        assert self.total_memory
 
         # Calculate slots
         self.slot_cpu = 1
@@ -110,15 +113,14 @@ class HardwareInfo:
         # Calculate how many ttys need the projects
         self.base_tty = config["base_tty"]
 
+        # Compute max tty and only initialise tty range if not expected
         if self.base_tty > 0 and hw_info.number_cores == 1:
             self.max_tty = self.base_tty + self.number_cores
             self.tty_range = "tty{0}".format(self.base_tty)
         elif self.base_tty > 0:
             self.max_tty = self.base_tty + (self.number_cores - 1)
-            self.tty_range = "tty[{0}-{1}]".format(self.base_tty,
-                                                   self.max_tty)
+            self.tty_range = "tty[{0}-{1}]".format(self.base_tty, self.max_tty)
         else:
-            # Don't display default -> tty0 + cpu cores
             self.max_tty = self.base_tty + self.number_cores
             self.tty_range = None
 
@@ -126,42 +128,39 @@ class HardwareInfo:
         """Get UUID from CernVM, uuid file or create a new one."""
         def uuid_from_cernvm():
             with ignored(EnvironmentError):
-                with open(self.local_cernvm_config, "r") as c:
-                    for line in c.readlines():
-                        key, value = line.split("=")
-                        if key == "CERNVM_UUID":
-                            return value
+                lines = read_from_file(self.local_cernvm_config, lines=True)
+            for line in lines or []:
+                key, value = line.split("=")
+                if key == "CERNVM_UUID":
+                    return value
 
         def uuid_from_file():
             with ignored(EnvironmentError):
-                line = read_from_file(self.uuid_file)
-                return line if line else None
+                return read_from_file(self.uuid_file)
 
         def genwrite_uuid():
             # Generate a new UUID and save it
             new_uuid = str(uuid4())
-            with ignored(EnvironmentError):
-                write_to_file(self.uuid_file, new_uuid)
+            safe_write_to_file(self.uuid_file, new_uuid, self.logger.warning)
             return new_uuid
 
         return uuid_from_cernvm() or uuid_from_file() or genwrite_uuid()
 
     @staticmethod
-    def _value_from_row(row_to_parse):
-        return int(row_to_parse.split()[1])
-
-    @staticmethod
     def get_memory_and_swap(free_output_lines):
-        regex = re.compile(r"^(Mem|Swap):[ \t]*([0-9]*)")
+        """Get memory and swap from the output of `free -k`."""
+        regex = re.compile(r"^(Mem|Swap):[ \t]*(\d*)")
 
         def silent_match(l):
             match = re.match(regex, l)
             return match.groups() if match else (None, None)
 
         matches = map(silent_match, free_output_lines)
-        _, mem = filter(lambda m: m[0] == "Mem", matches).pop()
-        _, swap = filter(lambda m: m[0] == "Swap", matches).pop()
-        return int(mem) if mem else mem, int(swap) if swap else swap
+        memlines = filter(lambda m: m[0] == "Mem", matches)
+        swaplines = filter(lambda m: m[0] == "Swap", matches)
+        mem = int(memlines.pop()[1]) if memlines else 0
+        swap = int(swaplines.pop()[1]) if swaplines else 0
+        return mem, swap
 
 
 class DumbqSetup:
@@ -171,19 +170,19 @@ class DumbqSetup:
         self.hw_info = hw_info
         self.logger = logger
 
-        # Dumbq-related variables
         self.dumbq_dir = self.config["dumbq_dir"]
         self.www_dir = self.config["www_dir"]
         self.dumbq_folders = None
 
     def setup_config(self):
         """Define Dumbq folders and update the config with their paths."""
-        fs = ["run", "tty", "preference.conf"]
+        fs = ["run", "tty", "preference.conf", "runhours"]
         dumbq_paths = map(lambda f: os.path.join(self.dumbq_dir, f), fs)
 
         self.config["dumbq_rundir"] = dumbq_paths[0]
         self.config["dumbq_ttydir"] = dumbq_paths[1]
-        self.config["dumbq_preference_file"] = dumbq_paths[2]
+        self.config["preference_config_source"] = dumbq_paths[2]
+        self.config["dumbq_runhours"] = dumbq_paths[3]
 
         self.dumbq_folders = (
             self.dumbq_dir, dumbq_paths[0], dumbq_paths[1]
@@ -206,65 +205,90 @@ class DumbqSetup:
 class ProjectHub:
 
     def __init__(self, config, feedback, logger, *args, **kwargs):
+        self.config = config
         self.logger = logger
         self.feedback = feedback
 
         # Default configuration sources
         self.config_source = config["config_source"]
-        self.config_file = config["config_file"]
-        self.config_preference = config["dumbq_preference_file"]
+        self.config_preference = config["preference_config_source"]
+        self.shared_meta_file = config["shared_meta_file"]
+        self.guest_meta_file = config["guest_meta_file"]
+
+        self.config_lines = None
 
         # Regexps to validate the content of the config files
         self.there_are_comments = re.compile("^[ \t]*#|^[ \t]*$")
-        self.valid_format = re.compile("^[^:]+:[^:]+:[^:]*:.*$")
+        self.valid_format = re.compile("^([^:]+):(\d+[,\d]*):([^:]*):(.+)$")
         self.escapes_from_cvmfs = re.compile("\.\.")
 
-        # Vars needed by setup()
-        self.config_content = None
-        self.shared_metadata_file = None
-        self.guest_metadata_file = None
+    def _read_config(self, config_file):
+        """Read project configuration file striping out comment lines."""
+        content_file = safe_read_from_file(config_file, self.logger) or ""
 
+        project_lines = self.there_are_comments.sub("", content_file)
+        return project_lines.split("\n") if project_lines else []
+
+    @staticmethod
+    def _parse_chance(field):
+        return int(field.split(",")[0])
+
+    def _parse_content_file(self, lines):
+        """Parse configuration file and return validity of the content."""
+        def project_parser(l):
+            valid_format = self.valid_format.match(l)
+            if valid_format and not self.escapes_from_cvmfs.search(l):
+                spec = valid_format.groups()
+                return (spec[0], self._parse_chance(spec[1]), spec[2], spec[3])
+            return None
+
+        self.valid_project_lines = filter(None, map(project_parser, lines))
+        return len(self.valid_project_lines) > 0
+
+    def _check_sum_chances_is_100(self):
+        sum_chances = sum(map(lambda p: p[1], self.valid_project_lines))
+        return sum_chances == 100
+
+    # TODO: Extend to fetch from SSL and FTPs besides local
     def fetch_config_file(self):
         """Get the content of the config local file."""
-        # Assume config_source is local
-        # TODO: Extend to fetch from SSL and FTPs
-        self.config_file = self.config_source
-        self.config_content = self._read_config(self.config_file)
+        self.config_lines = self._read_config(self.config_source)
+        valid_file = (self.config_lines
+                      and self._parse_content_file(self.config_lines)
+                      and self._check_sum_chances_is_100())
 
-        # If the configuration file is invalid, log and exit
-        valid_file = (self.config_content and
-                      self._validate_content_file(self.config_content))
-
-        if not valid_file:
+        # Log and exit if configuration is invalid
+        if not self.config_lines:
             error_and_exit(self.feedback["missing_config"], self.logger)
+        if not valid_file:
+            error_and_exit(feedback["invalid_config"], self.logger)
 
-    def check_config_preference(self):
+    def _check_preference_config(self):
         """Inform the user in case that a config preference exists."""
         if self.config_preference:
             self.logger.info(self.feedback["found_preference_file"]
                              .format(self.config_preference))
+        return self.config_preference
 
     def fetch_preference_file(self):
-        """Get the content of the preference config file which
-        overrides the chances of the projects defined in the
-        main config file.
-        """
-        self.preference_file = self._read_config(self.config_preference)
-        self.preferred_chances = {}
+        """Get preference config which overrides the chances of projects."""
+        if self._check_preference_config():
+            self.preference_lines = self._read_config(self.config_preference)
+            self.preferred_chances = {}
 
-        # If exists, save the overriden chance for a given project
-        if self.preference_file:
-            for project in self.preference_file:
-                project_name, new_chance = tuple(project.split(":")[0:2])
+            # Save the overriden chance for a given project
+            for project in self.preference_lines:
+                spec = project.split(":")
+                project_name, new_chance = spec[0], self._parse_chance(spec[1])
                 self.preferred_chances[project_name] = new_chance
 
     def preference_for(self, project):
         """Get a preferred chance for a project if it is defined."""
-        preference_for_all = self.preferred_chances["*"]
-        preference_for_project = self.preferred_chances[project]
+        preference_for_all = self.preferred_chances.get("*")
+        preference_for_project = self.preferred_chances.get(project)
         best = preference_for_all or preference_for_project
 
-        # In case both exist, return the best assigned chance
+        # Return the best assigned chance in case both exist
         if preference_for_all and preference_for_project:
             if preference_for_all > preference_for_project:
                 best = preference_for_all
@@ -274,58 +298,28 @@ class ProjectHub:
 
     def get_projects(self):
         """Return the content of the basic project configuration."""
-        return self.config_content
+        return self.valid_project_lines
 
     def parse_shared_and_guest_metadata_file(self):
-        self.shared_metadata_file, self.guest_metadata_file = \
-            self._parse_metadata_option(config["shared_metadata_option"])
-        self.config["shared_metadata_file"] = self.shared_metadata_file
-        self.config["guest_metadata_file"] = self.guest_metadata_file
-
-    def _read_config(self, config_file):
-        existing_file = None
-
-        with ignored(IOError):
-            with open(config_file, "r") as fp:
-                existing_file = fp.readlines()
-                without_comments = []
-
-                # Remove comments from the content
-                for line in existing_file:
-                    if not self.there_are_comments.match(line):
-                        without_comments.append(line)
-
-                existing_file = without_comments
-
-        return existing_file
-
-    def _parse_metadata_option(self, shared_option):
         """Get both shared and guest metadata files from the option.
 
         The metadata file is used by several instances of VMs
         to have access to variables predefined by the client.
         """
-        shared, guest = None, None
+        shared, guest = self.shared_meta_file, self.guest_meta_file
+        fields = shared.split('=')
+        if len(fields) > 1:
+            shared, guest = fields[0], fields[1]
 
-        if self.shared_option:
-            # Get options and strip first '/' to mount relatively
-            shared, guest = self.shared_option.split('=')
-            guest = lstrip(guest, '/')
+        # Strip first '/' to mount relatively
+        guest = lstrip(guest, '/')
 
-            # If the shared file does not exists, disable options
-            if not os.path.exists(shared):
-                shared, guest = None, None
+        if not os.path.exists(shared):
+            shared, guest = "", ""
 
-        return shared, guest
-
-    def _validate_content_file(self, lines):
-        def project_parser(l):
-            return (not self.there_are_comments.match(l) and
-                    self.valid_format.match(l) or
-                    not self.escapes_from_cvmfs.match(l))
-
-        valid_projects = filter(project_parser, lines)
-        return valid_projects > 0
+        self.shared_meta_file, self.guest_meta_file = shared, guest
+        self.config["shared_meta_file"] = shared
+        self.config["guest_meta_file"] = guest
 
 
 class ProjectManager:
@@ -350,19 +344,17 @@ class ProjectManager:
         self.base_tty = self.hw_info.base_tty
         self.max_tty = self.hw_info.max_tty
 
+        self.get_vars_regexp = re.compile("^[^=]+=(.*)")
+        self.extract_id_tty = re.compile(".*tty([0-9]+)")
+
         # Project information
         self.index_filename = os.path.join(self.www_dir, "index.json")
         self.temp_index_filename = os.path.join(self.www_dir, "index.new")
         self.version = config["version"]
         self.host_uuid = hw_info.host_uuid
 
-        # Regexp to get envars
-        self.get_vars_regexp = re.compile("^[^=]+=(.*)")
-        self.extract_id_tty = re.compile(".*tty([0-9]+)")
-
     def pick_project(self):
-        """Pick a project by rolling a dice and checking the chances
-        of being selected. Return the specification of the project."""
+        """Pick and return a project randomly chosen."""
         winner = None
         sum_chance = 0
         found = False
@@ -373,38 +365,33 @@ class ProjectManager:
 
         # Iterate over ALL the projects
         for project in projects:
-            # Get project information
-            specification = project.split(":")
-            project_name = specification[0]
-            options = specification[1]
+            project_name = project[0]
+            options = project[1]
             project_chance = options.split(",")[0]
 
-            # If preference chance, use it
+            # Use a preferred chance in case it exists
             preferred_chance = self.project_hub.preference_for(project_name)
             if preferred_chance:
                 self.logger.info(self.feedback["override_chance"]
                                  .format(project_chance, project_name))
                 project_chance = preferred_chance
 
+            # Recompute overall chance
             sum_chance += project_chance
 
             # Assign a winner when choice is below sum_chance
             if choice <= sum_chance and not found:
-                winner = specification
+                winner = project
                 found = True
-
-        # Check that all the chances add up to 100
-        if sum_chance != 100:
-            self.logger.error(self.feedback["incomplete_overall_chance"])
 
         return winner
 
     def path_of_runfile(self, container_name):
-        """Return abspath of the run file (flag) of a given container."""
+        """Return absolute path of the container's runfile (flag)."""
         return os.path.join(self.run_dir, container_name)
 
     def open_tty(self, container_name):
-        """Find a free tty for the given container. Return boolean."""
+        """Open a tty and return the success/failure of the operation."""
         def extract_tty_id(filename):
             match = self.extract_id_tty.match(filename)
             return match if not match else match.group(0)
@@ -417,27 +404,22 @@ class ProjectManager:
                 return f.readline().split()[0]
 
         def is_alive(pid):
-            try:
+            with ignored(OSError):
                 os.kill(pid, 0)
-            except OSError:
-                return False
-            else:
                 return True
+            return False
 
-        def write_content_to_tty_file(tty_id, container_name):
+        def dump_info_to_file(tty_id, container_name):
             new_tty_fp = filepath_from_tty_id(tty_id)
-            with open(new_tty_fp, "w") as f:
-                f.write("{0} {1}".format(os.getpid(), container_name))
+            tty_info = "{0} {1}".format(os.getpid(), container_name)
+            safe_write_to_file(new_tty_fp, tty_info, self.logger.error)
 
         def remove_tty_flag(tty_id):
-            try:
+            feedback = self.feedback["tty_file_removal"].format(tty_id)
+            with logged(self.logger.error, feedback, (EnvironmentError,)):
                 os.remove(filepath_from_tty_id(tty_id))
-            except (OSError, IOError):
-                self.logger.error(self.feedback["tty_file_removal"]
-                                  .format(tty_id))
-                return False
-            else:
                 return True
+            return False
 
         def remove_flag_if_alive(tty_id):
             tty_fp = filepath_from_tty_id(tty_id)
@@ -448,15 +430,17 @@ class ProjectManager:
         def start_console_daemon(tty_id, container_name):
             self.logger.info(self.feedback["reserving_tty"]
                              .format(tty_id, container_name))
-
-            openvt_command = ["openvt", "-w", "-f", "-c", tty_id, "--",
-                              self.cernvm_fork_bin, container_name, "-C"]
-            clear_command = ["clear"]
             tty_device = "/dev/tty{0}".format(tty_id)
             tty = open(tty_device, "w")
 
-            # Write content info to tty file and clear tty
-            write_content_to_tty_file(tty_id, container_name)
+            clear_command = ["clear"]
+            openvt_command = [
+                "openvt", "-w", "-f", "-c", tty_id, "--",
+                self.cernvm_fork_bin, container_name, "-C"
+            ]
+
+            # Dump info to tty file and clear tty
+            dump_info_to_file(tty_id, container_name)
             call(clear_command, stdout=tty)
             container_is_active = True
 
@@ -486,6 +470,7 @@ class ProjectManager:
                 free_id = tty_id
                 break
 
+        # Log if no free tty is found
         if not free_id:
             message = self.feedback["no_free_tty"].format(container_name)
             self.logger.error(message)
@@ -496,6 +481,8 @@ class ProjectManager:
         return free_id and start_terminal.start()
 
     def run_project(self):
+        """Run a project and allocate the necessary resources."""
+
         def start_container():
             """Start CernVM fork with the proper context."""
             memory_option = "\'lxc.group.memory.limit_in_bytes = {0}K\'"
@@ -552,14 +539,14 @@ class ProjectManager:
                 return True
 
         def post_start_project():
-            # Copy metadata file to guest
+            # Copy metadata file to guest mountpoint in container
             if self.shared_meta_file:
-                path_to_copy = ("/mnt/.rw/containers/{0}/root/{0}"
+                path_to_copy = (self.config["guest_mountpoint"]
                                 .format(container_name, self.guest_meta_file))
                 shutil.copy(self.shared_meta_file, path_to_copy)
 
             # Create run file for project and update projects info
-            run_file_contents = jsonify(
+            project_info = jsonify(
                 uuid=container_uuid,
                 wwwroot="/inst-{0}".format(container_name),
                 project=project_name,
@@ -568,14 +555,14 @@ class ProjectManager:
                 cpus=quota_cpu
             )
 
-            flag_filepath = "{0}/{0}".format(self.run_dir, container_name)
-            with open(flag_filepath, "w") as f:
-                f.write(run_file_contents)
+            flag_filepath = "{0}/{1}".format(self.run_dir, container_name)
+            safe_write_to_file(flag_filepath, project_info, self.logger.error)
 
             if self.www_dir:
-                self.update_projects_info()
+                self.update_project_stats()
 
             # Open tty console for project
+            # TODO: Review this
             if self.base_tty > 0:
                 self.open_tty(container_name)
 
@@ -626,7 +613,7 @@ class ProjectManager:
         return is_success
 
     def stop_project(self, container_name):
-        """Destroy project's container and its assigned resources."""
+        """Destroy project's container and its allocated resources."""
         def destroy_container():
             action = [self.cernvm_fork_bin, container_name, "-D"]
             return call(action, stdout=DEVNULL)
@@ -678,38 +665,40 @@ class ProjectManager:
 
         # Update only if needed
         if needs_update:
-            self.update_projects_info()
+            self.update_project_stats()
 
         return needs_update
 
-    def update_projects_info(self):
+    def update_project_stats(self):
         """Thread-safe update of the index in the public WWW folder.
 
-        Index represents the state, resources and logs of the projects."""
+        Index represents the state, resources and logs of the projects.
+        """
         def running_instances():
+            """Get run dir and container name of every project."""
             for container_name in self.get_containers_in_run_dir():
-                filepath = self.path_of_runfile(container_name)
+                run_fp = self.path_of_runfile(container_name)
 
-                # Get project description & remove newlines
-                with open(filepath, "r") as f:
-                    content = f.read()
-                    yield content.translate(None, "\n")
+                content = safe_read_from_file(
+                    run_fp, self.logger.error, lines=True)
+                yield content[0]
 
         def get_uptime():
-            # Read uptime and replace spaces by commas
+            """Read uptime and replace spaces by commas."""
             with open("/proc/uptime", "r") as f:
                 seconds = f.readline()
                 return seconds.translate(string.maketrans(' ', ','))
             return None
 
         def get_load():
+            """Get load from the uptime command."""
             return check_output(["uptime"]).split("load average: ")[1]
 
         def get_run_hours():
-            with open(self.dumbq_dir + "/runhours") as f:
-                hours = f.readline()
-                if not hours:
-                    hours = 0
+            """Get run hours of DumbQ."""
+            runhours_fp = self.config["dumbq_runhours"]
+            hours = safe_read_from_file(runhours_fp, self.logger.warning)[0]
+            return hours if hours else 0
 
         now = str(time.time()).split(".")[0]
 
@@ -753,7 +742,7 @@ class ProjectManager:
                 needs_update = needs_update or stopped
 
         if needs_update:
-            self.update_projects_info()
+            self.update_project_stats()
 
     def read_environment_variables(self):
         """Read environment variables from floppy or default file."""
@@ -780,6 +769,7 @@ class ProjectManager:
                 self.envvars.extend(get_envvars(content))
 
 
+# Use "" if an option is not enabled, not None.
 config = {
     "config_ssl_certs":     "",
     "config_ssl_capath":    "",
@@ -798,11 +788,12 @@ config = {
     "www_dir":              "/var/www/html",
     "uuid_file":            "/var/lib/uuid",
     "test_logfile":         "/var/lib/dumbq/testing.log",
+    "guest_mountpoint":     "/mnt/.rw/containers/{0}/root/{0}",
     "local_cernvm_config":   "/etc/cernvm/default.conf",
     "config_source":        "/cvmfs/sft.cern.ch/lcg/external/"
                             "experimental/dumbq/server/default.conf",
     "floppy_reader_bin":    "/cvmfs/sft.cern.ch/lcg/external/"
-                            "cernvm-copilot/bin/readFloppy.pl"
+                            "cernvm-copilot/bin/readFloppy.pl",
 }
 
 explanations = {
@@ -828,6 +819,7 @@ explanations = {
 }
 
 feedback = {
+    "write_file_error":         "Problem when writing to file {0}",
     "destruction_error":        "Unable to destroy the container!",
     "missing_config":           "Could not fetch configuration file!",
     "found_preference_file":    "Overriding project preference using {0}",
@@ -837,10 +829,12 @@ feedback = {
     "reserving_tty":            "Reserving tty{0} for container{1}",
     "connecting_tty":           "Connecting to {0}...",
     "override_chance":          "Overriding chance to {0}% for project {1}",
-    "incomplete_overall_chance": "The sum of the project chances is not 100!",
     "starting_project":         "Starting project \'{0}\'",
     "cernvm_error":             "Unable to create a CernVM fork!",
-    "free_slot":                "There is a free slot available"
+    "free_slot":                "There is a free slot available",
+    "invalid_config":           "Could not validate configuration information"
+                                "\nEither the format is not valid or the sum"
+                                "of the project chances is not 100.",
 }
 
 if __name__ == "__init__":
@@ -868,7 +862,7 @@ if __name__ == "__init__":
     config.update(vars(parser.parse_args()))
 
     logger = ConsoleLogger()
-    hw_info = HardwareInfo(config)
+    hw_info = HardwareInfo(config, feedback, logger)
 
     dumbq_setup = DumbqSetup(hw_info, config, logger)
     dumbq_setup.setup_config()
@@ -878,7 +872,6 @@ if __name__ == "__init__":
 
     project_hub = ProjectHub(config, feedback, logger)
     project_hub.fetch_config_file()
-    project_hub.check_config_preference()
     project_hub.fetch_preference_file()
     project_hub.parse_shared_and_guest_metadata_file()
 
@@ -886,7 +879,7 @@ if __name__ == "__init__":
                                      config, feedback, logger)
     project_manager.read_environment_variables()
     project_manager.cleanup_environment()
-    project_manager.update_projects_info()
+    project_manager.update_project_stats()
 
     # Main logic of the program
     while True:
@@ -896,5 +889,5 @@ if __name__ == "__init__":
             time.sleep(1)
         else:
             # Update index file to get current hw stats
-            project_manager.update_projects_info()
+            project_manager.update_project_stats()
             time.sleep(10)

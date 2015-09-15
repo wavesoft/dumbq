@@ -20,12 +20,14 @@
 import errno
 import os
 import json
+import sys
+import subprocess
 
 from contextlib import contextmanager
 
 DEVNULL = os.open(os.devnull, os.O_RDWR)
-
-import subprocess
+default_write_error = "Problem when writing to {0}"
+default_read_error = "Problem when reading from {0}"
 
 
 def check_output(*popenargs, **kwargs):
@@ -47,34 +49,9 @@ def check_output(*popenargs, **kwargs):
     return output
 
 
-def write_to_file(filepath, content):
-    with open(filepath, "w") as f:
-        f.write(content)
-
-
-def read_from_file(filepath):
-    with open(filepath, "r") as f:
-        return f.read()
-
-
-@contextmanager
-def post_empty(filepath):
-    try:
-        yield
-    except Exception as e:
-        raise e
-    else:
-        with ignored(EnvironmentError):
-            write_to_file(filepath, "")
-
-
-def error_and_exit(error_message, logger):
-    logger.error(error_message)
-    exit(2)
-
-
 @contextmanager
 def ignored(*exceptions):
+    """Ignore certain type of exceptions."""
     try:
         yield
     except exceptions:
@@ -82,14 +59,48 @@ def ignored(*exceptions):
 
 
 @contextmanager
-def logged(logger, message, *exceptions):
+def logged(f_logger, message, *exceptions):
+    """Log a message when a certain type of exceptions occur."""
     try:
         yield
     except exceptions:
-        logger.warning(message)
+        f_logger(message)
+
+
+def write_to_file(filepath, content):
+    """Write to a file."""
+    with open(filepath, "w") as f:
+        f.write(content)
+
+
+def safe_write_to_file(filepath, content, f_logger, error_feedback=None):
+    """Write to a file logging any exception."""
+    feedback = error_feedback or default_write_error.format(filepath)
+    with logged(f_logger, feedback, (EnvironmentError,)):
+        return write_to_file(filepath, content)
+
+
+def read_from_file(filepath, lines=False):
+    """Read from a file raw content or lines."""
+    with open(filepath, "r") as f:
+        return f.readlines() if lines else f.read()
+
+
+def safe_read_from_file(filepath, f_logger, error_feedback=None, lines=False):
+    """Read from a file raw content or lines logging any exception."""
+    feedback = error_feedback or default_read_error.format(filepath)
+    with logged(f_logger, feedback, (EnvironmentError,)):
+        return read_from_file(filepath, lines)
+
+
+def error_and_exit(error_message, logger):
+    """Log error and exit."""
+    logger.error(error_message)
+    sys.exit(2)
 
 
 def create_dir_if_nonexistent(dirpath, mode=0777):
+    """Create a directory if it does not exist, otherwise ignore."""
     try:
         os.makedirs(dirpath)
     except OSError as exception:
@@ -98,4 +109,5 @@ def create_dir_if_nonexistent(dirpath, mode=0777):
 
 
 def jsonify(**vars):
+    """Idiom to convert to json."""
     return json.dumps(vars)
