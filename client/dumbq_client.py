@@ -48,7 +48,6 @@ from subprocess import check_output, call, CalledProcessError
 from utils.utils import create_dir_if_nonexistent, jsonify, DEVNULL
 from utils.utils import ignored, error_and_exit, logged
 from utils.utils import safe_read_from_file, safe_write_to_file
-from utils.utils import read_from_file, write_to_file
 
 base_logger_class = logging.getLoggerClass()
 
@@ -127,16 +126,15 @@ class HardwareInfo:
     def get_host_identifier(self):
         """Get UUID from CernVM, uuid file or create a new one."""
         def uuid_from_cernvm():
-            with ignored(EnvironmentError):
-                lines = read_from_file(self.local_cernvm_config, lines=True)
+            lines = safe_read_from_file(
+                self.local_cernvm_config, self.logger.warning, lines=True)
             for line in lines or []:
                 key, value = line.split("=")
                 if key == "CERNVM_UUID":
                     return value
 
         def uuid_from_file():
-            with ignored(EnvironmentError):
-                return read_from_file(self.uuid_file)
+            return safe_read_from_file(self.uuid_file, self.logger.warning)
 
         def genwrite_uuid():
             # Generate a new UUID and save it
@@ -224,13 +222,15 @@ class ProjectHub:
 
     def _read_config(self, config_file):
         """Read project configuration file striping out comment lines."""
-        content_file = safe_read_from_file(config_file, self.logger) or ""
-
+        content_file = safe_read_from_file(
+            config_file, self.logger.error
+        ) or ""
         project_lines = self.there_are_comments.sub("", content_file)
         return project_lines.split("\n") if project_lines else []
 
     @staticmethod
     def _parse_chance(field):
+        """Return a correct chance from the chance field."""
         return int(field.split(",")[0])
 
     def _parse_content_file(self, lines):
@@ -246,6 +246,7 @@ class ProjectHub:
         return len(self.valid_project_lines) > 0
 
     def _check_sum_chances_is_100(self):
+        """Check the sum of all the valid project lines is 100."""
         sum_chances = sum(map(lambda p: p[1], self.valid_project_lines))
         return sum_chances == 100
 
@@ -324,7 +325,7 @@ class ProjectHub:
 
 class ProjectManager:
 
-    def __init__(self, hw_info, config, logger):
+    def __init__(self, project_hub, hw_info, config, logger):
         self.project_hub = project_hub
         self.hw_info = hw_info
         self.config = config
@@ -339,22 +340,20 @@ class ProjectManager:
         self.shared_meta_file = config["shared_meta_file"]
         self.guest_meta_file = config["guest_meta_file"]
         self.bind_mount = config["bind_mount"]
-        self.envvars = []
-
-        self.base_tty = self.hw_info.base_tty
-        self.max_tty = self.hw_info.max_tty
 
         self.get_vars_regexp = re.compile("^[^=]+=(.*)")
-        self.extract_id_tty = re.compile(".*tty([0-9]+)")
+        self.extract_id_tty = re.compile(".*tty(\d+)")
 
-        # Project information
+        self.envvars = []
+        self.base_tty = self.hw_info.base_tty
+        self.max_tty = self.hw_info.max_tty
         self.index_filename = os.path.join(self.www_dir, "index.json")
-        self.temp_index_filename = os.path.join(self.www_dir, "index.new")
+        self.temp_index_filepath = os.path.join(self.www_dir, "index.new")
         self.version = config["version"]
         self.host_uuid = hw_info.host_uuid
 
     def pick_project(self):
-        """Pick and return a project randomly chosen."""
+        """Return a project randomly chosen."""
         winner = None
         sum_chance = 0
         found = False
@@ -394,16 +393,19 @@ class ProjectManager:
         """Open a tty and return the success/failure of the operation."""
         def extract_tty_id(filename):
             match = self.extract_id_tty.match(filename)
-            return match if not match else match.group(0)
+            return match.group(0) if match else None
 
         def filepath_from_tty_id(tty_id):
             return os.path.join(self.tty_dir, "tty" + tty_id)
 
         def read_pid(tty_filepath):
-            with open(tty_filepath, "r") as f:
-                return f.readline().split()[0]
+            """Read PID from the tty info file."""
+            return safe_read_from_file(
+                tty_filepath, self.logger.warning, lines=True
+            )[0]
 
         def is_alive(pid):
+            """Return if a process with a PID is still alive."""
             with ignored(OSError):
                 os.kill(pid, 0)
                 return True
@@ -432,6 +434,7 @@ class ProjectManager:
                              .format(tty_id, container_name))
             tty_device = "/dev/tty{0}".format(tty_id)
             tty = open(tty_device, "w")
+            old_stdout = sys.stdout
 
             clear_command = ["clear"]
             openvt_command = [
@@ -448,6 +451,7 @@ class ProjectManager:
                 # Change stdout to tty and print feedback to tty
                 sys.stdout = tty
                 print(self.feedback["connecting_tty"].format(container_name))
+                sys.stdout = old_stdout
 
                 # Call openvt every 2 seconds unless container went away
                 call(openvt_command)
@@ -462,6 +466,7 @@ class ProjectManager:
         # Get tty ids from existing tty flag files
         tty_files = os.listdir(self.tty_dir)
         tty_ids = set(map(extract_tty_id, tty_files))
+        tty_ids.remove(None)
         free_id = None
 
         # Find first free tty among the used ttys
@@ -470,14 +475,14 @@ class ProjectManager:
                 free_id = tty_id
                 break
 
-        # Log if no free tty is found
+        # Log as error if no free tty is found
         if not free_id:
             message = self.feedback["no_free_tty"].format(container_name)
             self.logger.error(message)
 
+        # Start daemon in the background
         start_terminal = Process(target=start_console_daemon,
                                  args=(free_id, container_name))
-
         return free_id and start_terminal.start()
 
     def run_project(self):
@@ -561,8 +566,7 @@ class ProjectManager:
             if self.www_dir:
                 self.update_project_stats()
 
-            # Open tty console for project
-            # TODO: Review this
+            # Open tty console for project if option enabled
             if self.base_tty > 0:
                 self.open_tty(container_name)
 
@@ -649,9 +653,9 @@ class ProjectManager:
         return set(check_output(["lxc-ls", "--active"]).split("\n"))
 
     def has_free_space(self):
-        """Check the resources to run another project."""
+        """Check if another project can be run in the host."""
         active_containers = self.get_active_containers()
-        needs_update = False
+        available_space = False
 
         # Check which containers are inactive
         for container_name in self.get_containers_in_run_dir():
@@ -659,15 +663,14 @@ class ProjectManager:
                 self.logger.info(self.feedback["inactive_container"]
                                  .format(container_name))
 
-                # Stop and free resources, update index if success
-                destroyed = self.stop_project(container_name)
-                needs_update = needs_update or destroyed
+                # Exit loop if container stopped, there is free space
+                if self.stop_project(container_name):
+                    available_space = True
+                    break
 
-        # Update only if needed
-        if needs_update:
+        if available_space:
             self.update_project_stats()
-
-        return needs_update
+        return available_space
 
     def update_project_stats(self):
         """Thread-safe update of the index in the public WWW folder.
@@ -685,10 +688,8 @@ class ProjectManager:
 
         def get_uptime():
             """Read uptime and replace spaces by commas."""
-            with open("/proc/uptime", "r") as f:
-                seconds = f.readline()
-                return seconds.translate(string.maketrans(' ', ','))
-            return None
+            seconds = safe_read_from_file("/proc/uptime", self.logger.error)[0]
+            return seconds.translate(string.maketrans(' ', ',')) or None
 
         def get_load():
             """Get load from the uptime command."""
@@ -711,10 +712,10 @@ class ProjectManager:
                                 load=get_load(),
                                 runhours=get_run_hours())
 
-        # Overwrite updated contents to new file and update old
-        with open(self.temp_index_filename, "w") as f:
-            f.write(updated_index)
-        os.rename(self.temp_index_filename, self.index_filename)
+        # Overwrite updated contents to tmp file and update old
+        safe_write_to_file(self.temp_index_filepath,
+                           updated_index, self.logger.warning)
+        os.rename(self.temp_index_filepath, self.index_filename)
 
     def cleanup_environment(self):
         """Clean up stale resources from inactive containers."""
@@ -736,8 +737,6 @@ class ProjectManager:
             for stale_container_name in stale_containers:
                 self.logger.info(self.feedback["clean_container"]
                                  .format(stale_container_name))
-
-                # Stop project and check for update
                 stopped = self.stop_project(stale_container_name)
                 needs_update = needs_update or stopped
 
@@ -750,8 +749,7 @@ class ProjectManager:
             # Return lines with 'key=value' format
             for line in lines:
                 match = self.get_vars_regexp.match(line)
-                if match:
-                    yield match.group()
+                yield match.group() if match else None
 
         floppy_reader = self.config["floppy_reader_bin"]
         envvar_file = self.config["envvar_file"]
@@ -819,17 +817,18 @@ explanations = {
 }
 
 feedback = {
-    "write_file_error":         "Problem when writing to file {0}",
+    "write_file_error":         "Problem when writing to file \'{0}\'",
     "destruction_error":        "Unable to destroy the container!",
     "missing_config":           "Could not fetch configuration file!",
-    "found_preference_file":    "Overriding project preference using {0}",
-    "clean_container":          "Cleaning up stale container {0}",
-    "inactive_container":       "Found inactive container {0}",
-    "no_free_tty":              "There is no free tty for container {0}!",
-    "reserving_tty":            "Reserving tty{0} for container{1}",
-    "connecting_tty":           "Connecting to {0}...",
-    "override_chance":          "Overriding chance to {0}% for project {1}",
+    "found_preference_file":    "Overriding project preference using \'{0}\'",
+    "clean_container":          "Cleaning up stale container \'{0}\'",
+    "inactive_container":       "Found inactive container \'{0}\'",
+    "no_free_tty":              "There is no free tty for container \'{0}\'!",
+    "reserving_tty":            "Reserving tty{0} for container \'{1}\'",
+    "connecting_tty":           "Connecting to \'{0}\'...",
+    "override_chance":          "Preferred chance {0}% for project \'{1}\'",
     "starting_project":         "Starting project \'{0}\'",
+    "update_index_error":       "The index file could not be updated",
     "cernvm_error":             "Unable to create a CernVM fork!",
     "free_slot":                "There is a free slot available",
     "invalid_config":           "Could not validate configuration information"
@@ -875,8 +874,10 @@ if __name__ == "__init__":
     project_hub.fetch_preference_file()
     project_hub.parse_shared_and_guest_metadata_file()
 
-    project_manager = ProjectManager(project_hub, hw_info,
-                                     config, feedback, logger)
+    project_manager = ProjectManager(
+        project_hub, hw_info, config, feedback, logger
+    )
+
     project_manager.read_environment_variables()
     project_manager.cleanup_environment()
     project_manager.update_project_stats()

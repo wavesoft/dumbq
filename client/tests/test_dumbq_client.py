@@ -19,22 +19,23 @@
 
 """Test suite for all the components in DumbQ."""
 
-import os
 import multiprocessing
+import os
 import re
-import tempfile
 import shutil
+import tempfile
 import unittest
 
+from string import lstrip
 from uuid import UUID, uuid4
 
-# If you run this locally, the parent folder should
-# be added to the path. Otherwise these imports will fail
+# Add the parent folder to the path if run locally, otherwise imports fail
 from dumbq_client import config, feedback
 from dumbq_client import HardwareInfo, ConsoleLogger, DumbqSetup
-from dumbq_client import ProjectHub
+from dumbq_client import ProjectHub, ProjectManager
 
 from utils.utils import write_to_file, read_from_file
+from utils.test_utils import safe_repr
 
 
 class BaseDumbqTest(unittest.TestCase):
@@ -76,7 +77,7 @@ class BaseDumbqTest(unittest.TestCase):
 
         _, self.shared = tempfile.mkstemp()
         _, self.guest = tempfile.mkstemp()
-        self.config["shared_mount"] = self.shared + "=" + self.guest
+        self.config["shared_meta_file"] = self.shared + "=" + self.guest
 
     def setup_config_files(self):
         """Define the configuration files to be tested afterwards."""
@@ -112,14 +113,12 @@ class BaseDumbqTest(unittest.TestCase):
         _, self.config_source = tempfile.mkstemp()
         self.config["config_source"] = self.config_source
 
-        _, self.pref_config_source = tempfile.mkstemp()
-        self.config["preference_config_source"] = self.pref_config_source
-
     def init_console_and_hw_info(self):
         """Init logger and hardware info with its dependencies."""
         self.logger = ConsoleLogger()
         self.hardware_info = HardwareInfo(
-            self.config, self.feedback, self.logger)
+            self.config, self.feedback, self.logger
+        )
 
     def init_dumbq_setup(self):
         """Init dumbq setup with its dependencies."""
@@ -128,11 +127,33 @@ class BaseDumbqTest(unittest.TestCase):
             self.hardware_info, self.config, self.logger
         )
 
-    def init_project_hub(self):
+    def init_project_hub(self, config_content=None, pref_content=None):
         """Init project hub with its dependencies."""
         self.init_dumbq_setup()
+        self.dumbq_setup.setup_config()
+        self.dumbq_setup.setup_dumbq_folders()
+        self.dumbq_setup.setup_logger(testing=True)
+        self.dumbq_setup.setup_public_www()
+
+        config_content = config_content or self.valid_config_content
+        pref_content = pref_content or ""
+        self.pref_config_source = config["preference_config_source"]
+        write_to_file(self.config_source, config_content)
+        write_to_file(self.pref_config_source, pref_content)
+
         self.project_hub = ProjectHub(
             self.config, self.feedback, self.logger
+        )
+
+    def init_project_manager(self):
+        """Init project manager with its dependencies."""
+        self.init_project_hub()
+        self.project_hub.fetch_config_file()
+        self.project_hub.fetch_preference_file()
+        self.project_hub.parse_shared_and_guest_metadata_file()
+
+        self.project_manager = ProjectManager(
+            self.project_hub, self.hardware_info, self.config, self.logger
         )
 
     def tearDown(self):
@@ -146,6 +167,24 @@ class BaseDumbqTest(unittest.TestCase):
 
         # Remove tempfiles
         shutil.rmtree(tempfile.tempdir, ignore_errors=True)
+
+    ############################################################
+    # Monkey patch from unittest 2.7 advanced assert functions #
+    ############################################################
+
+    def assertIn(self, member, container, msg=None):
+        """Just like self.assertTrue(a in b), with a nicer default message."""
+        if member not in container:
+            standardMsg = '%s not found in %s' % (safe_repr(member),
+                                                  safe_repr(container))
+            self.fail(self._formatMessage(msg, standardMsg))
+
+    def assertIsInstance(self, obj, cls, msg=None):
+        """Same as self.assertTrue(isinstance(obj, cls)), with a nicer
+        default message."""
+        if not isinstance(obj, cls):
+            standardMsg = '%s is not an instance of %r' % (safe_repr(obj), cls)
+            self.fail(self._formatMessage(msg, standardMsg))
 
 
 class HardwareInfoTest(BaseDumbqTest):
@@ -206,7 +245,8 @@ class DumbqSetupTest(BaseDumbqTest):
         folders = [self.www_dir]
         folders.extend(self.dumbq_setup.dumbq_folders)
         existing_folders = filter(lambda f: os.path.exists(f), folders)
-        self.assertItemsEqual(folders, existing_folders)
+        for folder in folders:
+            self.assertIn(folder, existing_folders)
 
     def test_minimum_info_is_logged(self):
         """Test that, at least, certain hardware info is printed at init."""
@@ -228,7 +268,6 @@ class ProjectHubTest(BaseDumbqTest):
 
     def test_valid_config_file(self):
         """Test that a valid config file is correctly parsed."""
-        write_to_file(self.config_source, self.valid_config_content)
         self.init_project_hub()
         self.project_hub.fetch_config_file()
         self.assertTrue(self.project_hub.get_projects())
@@ -245,8 +284,7 @@ class ProjectHubTest(BaseDumbqTest):
 
     def test_preference_file(self):
         """Test if chances in preference file are detected."""
-        write_to_file(self.pref_config_source, self.pref_config_content)
-        self.init_project_hub()
+        self.init_project_hub(pref_content=self.pref_config_content)
         self.project_hub.fetch_preference_file()
         nc = self.get_project_names_and_chances(self.pref_config_content)
         for name, chance in nc.iteritems():
@@ -254,8 +292,7 @@ class ProjectHubTest(BaseDumbqTest):
 
     def test_best_preferred_chance_is_chosen(self):
         """Test if chances in preference file are detected."""
-        write_to_file(self.pref_config_source, self.pref_config_content2)
-        self.init_project_hub()
+        self.init_project_hub(pref_content=self.pref_config_content2)
         self.project_hub.fetch_preference_file()
         nc = self.get_project_names_and_chances(self.pref_config_content2)
 
@@ -267,26 +304,34 @@ class ProjectHubTest(BaseDumbqTest):
 
     def test_invalid_config_file(self):
         """Test that several invalid project lines are detected."""
-        write_to_file(self.config_source, self.invalid_config_content)
-        self.init_project_hub()
-        with self.assertRaises(SystemExit) as catcher:
-            self.project_hub.fetch_config_file()
-        self.assertEqual(catcher.exception.code, 2)
+        self.init_project_hub(config_content=self.invalid_config_content)
+        self.assertRaises(SystemExit, self.project_hub.fetch_config_file)
 
     def test_valid_but_incomplete_config_file(self):
         """Test that valid project lines should always sum up to 100."""
-        write_to_file(self.config_source, self.incomplete_config_content)
-        self.init_project_hub()
-        with self.assertRaises(SystemExit) as catcher:
-            self.project_hub.fetch_config_file()
-        self.assertEqual(catcher.exception.code, 2)
+        self.init_project_hub(config_content=self.incomplete_config_content)
+        self.assertRaises(SystemExit, self.project_hub.fetch_config_file)
 
     def test_metadata_option_is_parsed(self):
-        write_to_file(self.config_source, self.valid_config_content)
         self.init_project_hub()
         self.project_hub.parse_shared_and_guest_metadata_file()
         self.assertEqual(self.shared, self.project_hub.shared_meta_file)
-        self.assertEqual(self.guest, self.project_hub.guest_meta_file)
+        relative_guest = lstrip(self.guest, '/')
+        self.assertEqual(relative_guest, self.project_hub.guest_meta_file)
+
+
+class ProjectManagerTest(BaseDumbqTest):
+
+    """Test suite for the ProjectManager."""
+
+    def test_has_free_space(self):
+        self.init_project_manager()
+
+    def test_update_index(self):
+        pass
+
+    def test_read_environment_variables(self):
+        pass
 
 
 if __name__ == '__main__':
