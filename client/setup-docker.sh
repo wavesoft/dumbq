@@ -23,7 +23,7 @@
 ######################################################
 
 IMAGE_FILE="cvm-docker.2.1-1.cernvm.x86_64.tar"
-IMAGE_NAME="cernvm/dumbq-test"
+IMAGE_NAME="cernvm-test"
 CERNVM_IMAGE_URL="http://cernvm.cern.ch/releases/testing/$IMAGE_FILE"
 
 if [[ ! -f $IMAGE_FILE ]]; then
@@ -33,7 +33,7 @@ fi
 
 if [[ $(docker images | grep $IMAGE_NAME) == "" ]]; then
 	echo "Importing CernVM to your docker images..."
-	cat $IMAGE_FILE | docker import - cernvm/dumbq-test
+	cat $IMAGE_FILE | docker import - $IMAGE_NAME
 fi
 
 if [[ $? != 0 ]]; then

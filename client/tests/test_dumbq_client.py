@@ -60,30 +60,49 @@ class BaseDumbqTest(unittest.TestCase):
         """Mock the environment with temp files, solving dependencies."""
         tempfile.tempdir = tempfile.mkdtemp(dir="/tmp")
 
+        # Mock cernvm environment
         _, self.uuid_fp = tempfile.mkstemp()
         self.config["uuid_file"] = self.uuid_fp
         _, self.cernvmconf_fp = tempfile.mkstemp()
         self.config["local_cernvm_config"] = self.cernvmconf_fp
 
+        # Mock dumbq environment
         self.dumbq_dir = tempfile.mkdtemp()
         self.config["dumbq_dir"] = self.dumbq_dir
         self.www_dir = tempfile.mkdtemp()
         self.config["www_dir"] = self.www_dir
 
+        # Store all the messages to a file
         _, self.test_logfile = tempfile.mkstemp()
         self.config["test_logfile"] = self.test_logfile
 
         self.setup_config_files()
 
+        # Bind mount directories
         _, self.shared = tempfile.mkstemp()
         _, self.guest = tempfile.mkstemp()
         self.config["shared_meta_file"] = self.shared + "=" + self.guest
 
+        # Set up with a few environment variables
+        _, self.envvar_file = tempfile.mkstemp()
+        self.config["envvar_file"] = self.envvar_file
+        self.envvar_floppy = "GREETING", "hello"
+        self.envvar = "FAREWELL", "goodbye"
+        write_to_file("/dev/fd0", "=".join(self.envvar_floppy))
+        write_to_file(self.envvar_file, "=".join(self.envvar))
+
+        # Tty enabled
+        if not os.environ.get("TERM"):
+            os.environ["TERM"] = "xterm"
+        self.config["base_tty"] = 1
+
     def setup_config_files(self):
         """Define the configuration files to be tested afterwards."""
+        dumbq = "/dumbq/bootstrap/dummy.sh"
+        bootstrap = "sft.cern.ch/lcg/external/experimental" + dumbq
         self.valid_config_content = "\n".join((
-            "test1:80:sft.cern.ch:sft.cern.ch/lcg/experimental/bootstrap.sh",
-            "test2:20:sft.cern.ch:sft.cern.ch/lcg/experimental/bootstrap2.sh",
+            "test1:80:sft.cern.ch:" + bootstrap,
+            "test2:20:sft.cern.ch:" + bootstrap,
         ))
 
         self.invalid_config_content = "\n".join((
@@ -130,7 +149,7 @@ class BaseDumbqTest(unittest.TestCase):
     def init_project_hub(self, config_content=None, pref_content=None):
         """Init project hub with its dependencies."""
         self.init_dumbq_setup()
-        self.dumbq_setup.setup_config()
+        self.dumbq_setup.basic_setup()
         self.dumbq_setup.setup_dumbq_folders()
         self.dumbq_setup.setup_logger(testing=True)
         self.dumbq_setup.setup_public_www()
@@ -140,6 +159,8 @@ class BaseDumbqTest(unittest.TestCase):
         self.pref_config_source = config["preference_config_source"]
         write_to_file(self.config_source, config_content)
         write_to_file(self.pref_config_source, pref_content)
+
+        self.run_dir = self.config["dumbq_rundir"]
 
         self.project_hub = ProjectHub(
             self.config, self.feedback, self.logger
@@ -171,6 +192,28 @@ class BaseDumbqTest(unittest.TestCase):
     ############################################################
     # Monkey patch from unittest 2.7 advanced assert functions #
     ############################################################
+
+    def _formatMessage(self, msg, standardMsg):
+        """Honour the longMessage attribute when generating failure messages.
+        If longMessage is False this means:
+        * Use only an explicit message if it is provided
+        * Otherwise use the standard message for the assert
+
+        If longMessage is True:
+        * Use the standard message
+        * If an explicit message is provided, plus ' : ' and the exp message
+        """
+        self.longMessage = False
+        if not self.longMessage:
+            return msg or standardMsg
+        if msg is None:
+            return standardMsg
+        try:
+            # don't switch to '{}' formatting in Python 2.X
+            # it changes the way unicode input is handled
+            return '%s : %s' % (standardMsg, msg)
+        except UnicodeDecodeError:
+            return '%s : %s' % (safe_repr(standardMsg), safe_repr(msg))
 
     def assertIn(self, member, container, msg=None):
         """Just like self.assertTrue(a in b), with a nicer default message."""
@@ -238,7 +281,7 @@ class DumbqSetupTest(BaseDumbqTest):
     def test_folders_are_created(self):
         """Test that necessary folders exist at init."""
         self.init_dumbq_setup()
-        self.dumbq_setup.setup_config()
+        self.dumbq_setup.basic_setup()
         self.dumbq_setup.setup_dumbq_folders()
         self.dumbq_setup.setup_public_www()
 
@@ -313,6 +356,7 @@ class ProjectHubTest(BaseDumbqTest):
         self.assertRaises(SystemExit, self.project_hub.fetch_config_file)
 
     def test_metadata_option_is_parsed(self):
+        """Test that both host and guest are correctly identified."""
         self.init_project_hub()
         self.project_hub.parse_shared_and_guest_metadata_file()
         self.assertEqual(self.shared, self.project_hub.shared_meta_file)
@@ -320,19 +364,162 @@ class ProjectHubTest(BaseDumbqTest):
         self.assertEqual(relative_guest, self.project_hub.guest_meta_file)
 
 
-class ProjectManagerTest(BaseDumbqTest):
+class BaseProjectManagerTest(BaseDumbqTest):
 
-    """Test suite for the ProjectManager."""
+    """Base class for utilities for both versions of ProjectManager tests."""
 
-    def test_has_free_space(self):
+    def _simulate_container_creation(self, container_name):
+        """As we cannot create a real container, simulate the environment."""
+        container_folder = "inst-{0}".format(container_name)
+        container_info_fp = os.path.join(self.www_dir, container_folder)
+        run_fp = self.run_dir + "/" + container_name
+
+        os.mkdir(container_info_fp)
+        write_to_file(run_fp, "")
+        return container_info_fp, run_fp
+
+
+class ProjectManagerTest(BaseProjectManagerTest):
+
+    """Test suite for the ProjectManager.
+
+    Some of the tests in this class are just checking there are not any runtime
+    errors when executing them, because we cannot create a project using
+    cernvm-fork inside a Docker container. Then, we cannot control the output
+    of commands like ``lxc-ls``."""
+
+    def test_update_project_stats(self):
+        """Test that the json index file is created."""
+        self.init_project_manager()
+        index_filepath = os.path.join(self.www_dir, "index.json")
+        self.assertFalse(os.path.exists(index_filepath))
+        self.project_manager.update_project_stats()
+        self.assertTrue(os.path.exists(index_filepath))
+
+    def test_free_space(self):
+        """Test there is free space for n (cores) containers at boot."""
         self.init_project_manager()
 
-    def test_update_index(self):
-        pass
+        try:
+            for i in range(multiprocessing.cpu_count()):
+                self._simulate_container_creation("test{0}".format(i))
+                self.assertTrue(self.project_manager.free_space())
+        except OSError:
+            failure = "This test fails because `cernvm-fork` is not installed"
+            self.fail(failure)
 
     def test_read_environment_variables(self):
-        pass
+        """Test that environment variables are read from fd0 and file."""
+        self.init_project_manager()
+        self.assertFalse(self.project_manager.envvars)
+        self.project_manager.read_environment_variables()
+        envvars = self.project_manager.envvars
+        self.assertIn(self.envvar, envvars)
+        self.assertIn(self.envvar_floppy, envvars)
+
+    def test_pick_project(self):
+        """Test that a random project is chosen."""
+        self.init_project_manager()
+        picked_project = self.project_manager.pick_project()
+        self.assertIn(picked_project, self.project_hub.get_projects())
+
+    def test_stop_project(self):
+        """Test that removal of a project is a success.
+
+        Although the project does not exist, the cernvm-fork command exits
+        successfully with a 0 errorcode, hence the test passes.
+        """
+        self.init_project_manager()
+        test_container_name = "test"
+        folder, flag = self._simulate_container_creation(test_container_name)
+
+        self.assertTrue(os.path.exists(folder))
+        self.assertTrue(os.path.exists(flag))
+
+        try:
+            result = self.project_manager.stop_project(test_container_name)
+        except OSError:
+            failure = "This test fails because `cernvm-fork` is not installed"
+            self.fail(failure)
+        else:
+            self.assertTrue(result)
+            self.assertFalse(os.path.exists(folder))
+            self.assertFalse(os.path.exists(flag))
+
+
+def with_cernvm_fork():
+    return os.environ.get("CERNVM_ENV")
+
+
+def inside_docker():
+    docker_env_file = "/.dockerinit"
+    return os.path.exists(docker_env_file)
+
+
+info_tests = ""
+inside_cernvm = with_cernvm_fork() and not inside_docker()
+
+if inside_cernvm:
+    class ProjectManagerTestInsideCernVM(BaseProjectManagerTest):
+
+        """Second test suite including more tests for ProjectManager.
+
+        These tests are meant to be run inside a real CernVM environment,
+        not Docker. Otherwise, they will fail because ``cernvm-fork`` fails
+        while creating a container inside Docker."""
+
+        def test_cleanup_environment(self):
+            """Test that resources from inactive containers are removed."""
+            self.init_project_manager()
+            folder, flag = self._simulate_container_creation("test1")
+            folder2, flag2 = self._simulate_container_creation("test2")
+
+            self.assertTrue(os.path.exists(folder))
+            self.assertTrue(os.path.exists(folder2))
+            self.assertTrue(os.path.exists(flag))
+            self.assertTrue(os.path.exists(flag2))
+
+            self.project_manager.cleanup_environment()
+
+            self.assertFalse(os.path.exists(folder))
+            self.assertFalse(os.path.exists(folder2))
+            self.assertFalse(os.path.exists(flag))
+            self.assertFalse(os.path.exists(flag2))
+
+        def test_open_tty(self):
+            """Test that a terminal can be opened."""
+            self.init_project_manager()
+            self.project_manager.run_project("test1")
+            self.assertTrue(self.project_manager.open_tty("test1"))
+
+        def test_run_project(self):
+            """Test that DumbQ is able to run projects."""
+            self.init_project_manager()
+            started_project = self.project_manager.run_project()
+            self.assertTrue(os.path.exists(self.config["www_dir"]))
+            self.assertTrue(started_project)
+            flag_fp = os.path.join(self.run_dir, started_project)
+            self.assertTrue(os.path.exists(flag_fp))
+
+else:
+    info_tests = """
+*********************************************
+** Be careful, some tests haven't been run **
+*********************************************
+
+REASON
+======
+At this moment is not possible to create a LXC container inside Docker.
+
+SOLUTION
+========
+Run the tests inside a real CernVM environment.
+"""
 
 
 if __name__ == '__main__':
-    unittest.main()
+    try:
+        unittest.main()
+    except SystemExit:
+        print(info_tests)
+        raise

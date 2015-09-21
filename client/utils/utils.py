@@ -89,7 +89,7 @@ def read_from_file(filepath, lines=False):
 def safe_read_from_file(filepath, f_logger, error_feedback=None, lines=False):
     """Read from a file raw content or lines logging any exception."""
     feedback = error_feedback or default_read_error.format(filepath)
-    with logged(f_logger, feedback, (EnvironmentError,)):
+    with logged(f_logger, feedback, (IOError,)):
         return read_from_file(filepath, lines)
 
 

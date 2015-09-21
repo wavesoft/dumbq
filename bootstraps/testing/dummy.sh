@@ -1,3 +1,4 @@
+#!/bin/bash - 
 # -*- coding: utf-8 -*-
 
 # DumbQ 2.0 - A lightweight job scheduler - Testing docker platform
@@ -17,12 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
-# Use manually installed Cernvm
-FROM cernvm-test
-
-# Add sources to `code` and work there:
-WORKDIR /dumbq-client
-ADD . /dumbq-client
-
-# Install some prerequisites and run tests in CernVM
-CMD  ["/init", "bash", "./dumbq-client/run-tests.sh"]
+while true; do
+	echo "Running..."
+	sleep 10
+done

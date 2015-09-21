@@ -18,11 +18,28 @@
 # along with this program; if not, write to the Free Software
 # Foundation Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
-##############################################
-# Set up docker and test Dumbq within CernVM #
-##############################################
-./setup-docker.sh && \
-	echo -e "\nBuild dumbq environment within CernVM\n"
-	/usr/bin/docker build -t dumbq-client . && \
-	echo -e "\nRun test suite...\n"
-	/usr/bin/docker run dumbq-client
+###############################
+# Execute tests within CernVM #
+###############################
+
+dir=$(dirname `readlink -f $0 || realpath $0`)
+floppy="/dev/fd0"
+stepid=0
+
+echo "Step $stepid : Add directory to PYTHONPATH (if necessary)"
+c=$(echo $PYTHONPATH | tr ':' '\n' | grep -x -c $dir)
+[[ $c == "0" ]] && \
+	export PYTHONPATH="$PYTHONPATH:$dir" 
+stepid=$(($stepid + 1))
+
+echo "Step $stepid : Create floppy drive"
+[[ ! -f "/dev/fd0" ]] \
+	&& install -m 666 /dev/null $floppy \
+	|| sudo install -m 666 /dev/null $floppy
+
+stepid=$(($stepid + 1))
+
+
+# Use Python 2.6 (the installed version in CernVM)
+echo "Step $stepid : Execute tests"
+/usr/bin/python2 "$dir/tests/test_dumbq_client.py"
