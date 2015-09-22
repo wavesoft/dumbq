@@ -17,7 +17,7 @@ DUMBQ_METRICS_BIN="${DUMBQ_UTILS_DIR}/dumbq-metrics"
 
 # Databridge client bin
 DATABRIDGE_AGENT_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/databridge-interface/client/bin/databridge-agent"
-DATABRIDGE_BASE_URL="https://t4t-data-bridge.cern.ch"
+DATABRIDGE_DOMAIN="t4t-data-bridge.cern.ch"
 
 # Test4Theory WebApp
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/experimental/t4t-webapp/t4t-webapp.tgz"
@@ -78,4 +78,4 @@ export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 
 # Start databridge agent
 echo "" > ${T4T_WEBAPP_LOGDIR}/databridge-client.log
-${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_BASE_URL}" 2>>${T4T_WEBAPP_LOGDIR}/databridge-client.log >>${T4T_WEBAPP_LOGDIR}/databridge-client.log
+${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_DOMAIN}" 2>>${T4T_WEBAPP_LOGDIR}/databridge-client.log >>${T4T_WEBAPP_LOGDIR}/databridge-client.log
