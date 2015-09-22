@@ -52,24 +52,34 @@ base_logger_class = logging.getLoggerClass()
 
 
 class ConsoleLogger(base_logger_class):
-
-    def __init__(self, name="DumbQ"):
+    def __init__(self, config, name="DumbQ"):
+        """Init formatters, levels and handlers."""
         base_logger_class.__init__(self, name)
         self.setLevel(logging.DEBUG)
+        self.config = config
 
-    def setup(self, config, hw_info, testing=False):
-        """Set up the logger and show basic information."""
-        if not testing:
-            self.addHandler(logging.StreamHandler())
+        formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s: %(message)s",
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        if not self.config["testing"]:
+            sh = logging.StreamHandler()
+            sh.setFormatter(formatter)
+            self.addHandler(sh)
         else:
             test_filename = config["test_logfile"]
-            self.addHandler(logging.FileHandler(test_filename))
+            fh = logging.FileHandler(test_filename)
+            fh.setFormatter(formatter)
+            self.addHandler(fh)
 
+    def setup(self, hw_info):
+        """Set up the logger and show basic information."""
         self.info("Dumbq Client version {0} started"
-                  .format(config["version"]))
+                  .format(self.config["version"]))
 
         self.info("Using configuration from {0}"
-                  .format(config["config_source"]))
+                  .format(self.config["config_source"]))
 
         self.info("Allocating {0} slot(s), with cpu={1}, "
                   "mem={2}Kb, swap={3}Kb"
@@ -88,7 +98,7 @@ logging.setLoggerClass(ConsoleLogger)
 class HardwareInfo:
 
     def __init__(self, config, feedback, logger):
-        """Get cpu, memory and other info about host's hardware."""
+        """Init cpu, memory and other info about host's hardware."""
         self.logger = logger
         self.feedback = feedback
         self.uuid_file = config["uuid_file"]
@@ -162,6 +172,7 @@ class HardwareInfo:
 class DumbqSetup:
 
     def __init__(self, hw_info, config, logger):
+        """Init and set dependencies of DumbqSetup."""
         self.config = config
         self.hw_info = hw_info
         self.logger = logger
@@ -188,9 +199,9 @@ class DumbqSetup:
         """Make sure dumbq folders exist. Otherwise, create them."""
         map(create_dir_if_nonexistent, self.dumbq_folders)
 
-    def setup_logger(self, testing=False):
+    def setup_logger(self):
         """Set up the logger and the handlers of the logs."""
-        self.logger.setup(self.config, self.hw_info, testing)
+        self.logger.setup(self.hw_info)
 
     def setup_public_www(self):
         """Create public WWW folder and make it readable."""
@@ -201,6 +212,7 @@ class DumbqSetup:
 class ProjectHub:
 
     def __init__(self, config, feedback, logger, *args, **kwargs):
+        """Init and set dependencies of ProjectHub."""
         self.config = config
         self.logger = logger
         self.feedback = feedback
@@ -264,10 +276,15 @@ class ProjectHub:
 
     def _check_preference_config(self):
         """Inform the user in case that a config preference exists."""
-        if self.config_preference:
+        exists = (self.config_preference and
+                  os.path.exists(self.config_preference))
+        if exists:
             self.logger.info(self.feedback["found_preference_file"]
                              .format(self.config_preference))
-        return self.config_preference
+        elif self.config_preference:
+            self.logger.info(self.feedback["notfound_preference_file"]
+                             .format(self.config_preference))
+        return exists
 
     def fetch_preference_file(self):
         """Get preference config which overrides the chances of projects."""
@@ -323,12 +340,14 @@ class ProjectHub:
 
 class ProjectManager:
 
-    def __init__(self, project_hub, hw_info, config, logger):
+    def __init__(self, project_hub, hw_info, config, feedback, logger):
+        """Init and set dependencies of ProjectManager."""
         self.project_hub = project_hub
         self.hw_info = hw_info
         self.config = config
         self.feedback = feedback
         self.logger = logger
+        self.testing = self.config["testing"]
 
         self.dumbq_dir = config["dumbq_dir"]
         self.run_dir = config["dumbq_rundir"]
@@ -389,10 +408,12 @@ class ProjectManager:
     def open_tty(self, container_name):
         """Open a tty and return the success/failure of the operation."""
         def extract_tty_id(filename):
+            """Extract id from tty name."""
             match = self.extract_id_tty.match(filename)
             return match.group(0) if match else None
 
         def filepath_from_tty_id(tty_id):
+            """Give path of tty flag."""
             return os.path.join(self.tty_dir, "tty{0}".format(tty_id))
 
         def read_pid(tty_filepath):
@@ -409,29 +430,34 @@ class ProjectManager:
             return False
 
         def dump_info_to_file(tty_id, container_name):
+            """Write PID of the monitor and the container attach to it."""
             new_tty_fp = filepath_from_tty_id(tty_id)
             tty_info = "{0} {1}".format(os.getpid(), container_name)
             safe_write_to_file(new_tty_fp, tty_info, self.logger.error)
 
         def remove_tty_flag(tty_id):
+            """Remove tty flag."""
             feedback = self.feedback["tty_file_removal"].format(tty_id)
-            with logged(self.logger.error, feedback, (EnvironmentError,)):
-                os.remove(filepath_from_tty_id(tty_id))
+            with logged(self.logger.error, feedback, (IOError,)):
+                with ignored(OSError):
+                    os.remove(filepath_from_tty_id(tty_id))
                 return True
             return False
 
         def remove_flag_if_alive(tty_id):
+            """Remove flag only if program monitor is dead."""
             tty_fp = filepath_from_tty_id(tty_id)
             if not is_alive(read_pid(tty_fp)):
                 return remove_tty_flag(tty_id)
             return False
 
         def start_console_daemon(tty_id, container_name):
+            """Start a console and set it up."""
             self.logger.info(self.feedback["reserving_tty"]
                              .format(tty_id, container_name))
             tty_device = "/dev/tty{0}".format(tty_id)
             tty = open(tty_device, "w")
-            old_stdout = sys.stdout
+            sys.stdout = tty
 
             clear_command = ["clear"]
             openvt_command = [
@@ -446,9 +472,7 @@ class ProjectManager:
 
             while container_is_active:
                 # Change stdout to tty and print feedback to tty
-                sys.stdout = tty
                 print(self.feedback["connecting_tty"].format(container_name))
-                sys.stdout = old_stdout
 
                 # Call openvt every 2 seconds unless container went away
                 call(openvt_command)
@@ -459,7 +483,6 @@ class ProjectManager:
             # Clear again and remove flag file
             call(clear_command, stdout=tty)
             remove_tty_flag(tty_id)
-            return True
 
         # Get tty ids from existing tty flag files
         tty_ids = set(map(extract_tty_id, os.listdir(self.tty_dir)))
@@ -467,7 +490,7 @@ class ProjectManager:
         free_id = None
 
         # Find first free tty among the used ttys
-        for tty_id in xrange(self.base_tty, self.max_tty + 1):
+        for tty_id in xrange(self.base_tty, self.max_tty):
             if tty_id not in tty_ids or remove_flag_if_alive(tty_id):
                 free_id = tty_id
                 break
@@ -479,8 +502,9 @@ class ProjectManager:
 
         start_terminal = Process(target=start_console_daemon,
                                  args=(free_id, container_name))
-        # Start tty daemon if free tty
-        return free_id and start_terminal.start()
+        # Start tty daemon if free tty and return True if success
+        free_id and start_terminal.start()
+        return free_id or start_terminal
 
     def run_project(self):
         """Run a project and allocate the necessary resources."""
@@ -492,11 +516,12 @@ class ProjectManager:
             metafile_option = "'DUMBQ_METAFILE = /{0}'"
 
             # Basic command configuration
+            repos_with_commas = ",".join(project_repos)
             cernvm_fork_command = [
                 self.cernvm_fork_bin, container_name,
                 "-n", "-d", "-f",
                 "--run={0}".format(container_run),
-                "--cvmfs={0}".format(project_repos),
+                "--cvmfs={0}".format(repos_with_commas),
                 "-o " + memory_option.format(quota_mem),
                 "-o " + swap_option.format(quota_swap)
             ]
@@ -561,6 +586,8 @@ class ProjectManager:
             if self.base_tty > 0:
                 self.open_tty(container_name)
 
+            return True
+
         # Get project to run, quotas and container conf
         project = self.pick_project()
         project_name = project[0]
@@ -573,7 +600,12 @@ class ProjectManager:
 
         container_uuid = str(uuid4())
         container_name = "{0}-{1}".format(project_name, container_uuid)
-        container_run = "/cvmfs/{0}".format(project_script)
+
+        # If testing flag on, use local script
+        if self.testing:
+            container_run = project_script
+        else:
+            container_run = "/cvmfs/{0}".format(project_script)
 
         # Mount WWW dir
         if self.www_dir:
@@ -605,7 +637,7 @@ class ProjectManager:
             self.logger.error(cernvm_error)
             is_success = False
 
-        return project_name if is_success else ""
+        return container_name if is_success else ""
 
     def stop_project(self, container_name):
         """Destroy project's container and its allocated resources."""
@@ -715,17 +747,14 @@ class ProjectManager:
         """Clean up stale resources from inactive containers."""
         any_cleaned = False
 
-        # Get flags of containers in the running folder
-        containers_in_run_dir = self.get_containers_in_run_dir()
-
         # Get inactive containers
-        total_containers = self.get_containers()
+        total_containers = self.get_containers_in_run_dir()
         active_containers = self.get_active_containers()
         inactive_containers = total_containers - active_containers
 
         # Iterate over all the stale containers
-        if containers_in_run_dir and inactive_containers:
-            stale_containers = (containers_in_run_dir & inactive_containers)
+        if total_containers and inactive_containers:
+            stale_containers = (total_containers & inactive_containers)
 
             # Stop, clean them and update index if it's a success
             for stale_container_name in stale_containers:
@@ -772,6 +801,7 @@ config = {
     "bind_mount":               "",
     "base_tty":                 0,
     "version":                  "2.0",
+    "testing":                  False,
     "dumbq_dir":                dumbq_dir,
     "cernvm_fork_bin":          "/usr/bin/cernvm-fork",
     "default_env_file":         "/var/lib/user-data",
@@ -815,6 +845,7 @@ feedback = {
     "destruction_error":        "Unable to destroy the container!",
     "missing_config":           "Could not fetch configuration file!",
     "found_preference_file":    "Overriding project preference using '{0}'",
+    "notfound_preference_file": "Could not find preference file '{0}'",
     "clean_container":          "Cleaning up stale container '{0}'",
     "inactive_container":       "Found inactive container '{0}'",
     "no_free_tty":              "There is no free tty for container '{0}'!",
@@ -831,33 +862,38 @@ feedback = {
                                 "of the project chances is not 100.",
 }
 
-if __name__ == "__init__":
-    authors = " and ".join(("Ioannis Charalampidis", "Jorge Vicente Cantero"))
-    dumbq_headline = "Dumbq Client v2.0 - {0}, CERN".format(authors)
+authors = " and ".join(("Ioannis Charalampidis", "Jorge Vicente Cantero"))
+dumbq_headline = "Dumbq Client v2.0 - {0}, CERN".format(authors)
 
-    parser = ArgumentParser(dumbq_headline)
-    parser.add_argument("-b", "--bind", help=explanations["bind"],
-                        dest="bind_mount", action="append")
-    parser.add_argument("-c", "--config", help=explanations["config"],
-                        dest="config_source")
-    parser.add_argument("-p", "--pref", help=explanations["pref"],
-                        dest="preference_config_source")
-    parser.add_argument("-S", "--share", help=explanations["share"],
-                        dest="guest_shared_mount")
-    parser.add_argument("-t", "--tty", help=explanations["tty"],
-                        dest="base_tty")
-    parser.add_argument("-w", "--webdir", help=explanations["webdir"],
-                        dest="www_dir")
-    parser.add_argument("-m", "--meta", help=explanations["meta"],
-                        dest="shared_meta_file")
+parser = ArgumentParser(dumbq_headline)
+parser.add_argument("-b", "--bind", help=explanations["bind"],
+                    dest="bind_mount", action="append")
+parser.add_argument("-c", "--config", help=explanations["config"],
+                    dest="config_source")
+parser.add_argument("-p", "--pref", help=explanations["pref"],
+                    dest="preference_config_source")
+parser.add_argument("-S", "--share", help=explanations["share"],
+                    dest="guest_shared_mount")
+parser.add_argument("-t", "--tty", help=explanations["tty"],
+                    dest="base_tty")
+parser.add_argument("-w", "--webdir", help=explanations["webdir"],
+                    dest="www_dir")
+parser.add_argument("-m", "--meta", help=explanations["meta"],
+                    dest="shared_meta_file")
 
-    # Add default bind value and update config with user options
-    parsed_args = vars(parser.parse_args())
-    default_bind = config["bind_mount"]
-    parsed_args["bind_mount"] = [default_bind] + parsed_args["bind_mount"]
-    config.update(parsed_args)
+# Add default bind value and remove all the values with a None value
+parsed_args = vars(parser.parse_args())
+nonempty_args = dict([arg for arg in parsed_args.iteritems() if arg[1]])
+default_bind = config["bind_mount"]
+bind_mount_args = nonempty_args.get("bind_mount") or []
 
-    logger = ConsoleLogger()
+if default_bind:
+    nonempty_args["bind_mount"] = [default_bind] + bind_mount_args
+
+if __name__ == "__main__":
+    config.update(nonempty_args)
+
+    logger = ConsoleLogger(config)
     hw_info = HardwareInfo(config, feedback, logger)
 
     dumbq_setup = DumbqSetup(hw_info, config, logger)

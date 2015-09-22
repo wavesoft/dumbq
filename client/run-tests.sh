@@ -33,12 +33,17 @@ c=$(echo $PYTHONPATH | tr ':' '\n' | grep -x -c $dir)
 stepid=$(($stepid + 1))
 
 echo "Step $stepid : Create floppy drive"
-[[ ! -z "/dev/fd0" ]] \
-	&& install -m 666 /dev/null $floppy \
-	|| sudo install -m 666 /dev/null $floppy
-
+[[ ! -f "/dev/fd0" ]] && \
+	install -m 777 /dev/null $floppy 2>/dev/null || \
+	sudo install -m 777 /dev/null $floppy
 stepid=$(($stepid + 1))
 
+echo "Step $stepid : Create containers folder in /mnt/.rw"
+containers_folder="/mnt/.rw/containers"
+[[ ! -d "$containers_folder" ]] && \
+	mkdir -m0777 -p $containers_folder 2>/dev/null || \
+	sudo mkdir -p -m0777 $containers_folder
+stepid=$(($stepid + 1))
 
 # Use Python 2.6 (the installed version in CernVM)
 echo "Step $stepid : Execute tests"

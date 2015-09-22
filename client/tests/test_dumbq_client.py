@@ -19,6 +19,7 @@
 
 """Test suite for all the components in DumbQ."""
 
+import datetime
 import multiprocessing
 import os
 import re
@@ -37,6 +38,19 @@ from dumbq_client import ProjectHub, ProjectManager
 from utils.utils import write_to_file, read_from_file
 from utils.test_utils import safe_repr
 
+# Set up testing environment and logger at start
+config["testing"] = True
+test_logfile = os.path.join(os.getcwd(), "dumbq-testing.log")
+config["test_logfile"] = test_logfile
+logger = ConsoleLogger(config)
+now = datetime.datetime.now()
+test_headline = "\n".join((
+    "*******************************************************",
+    "** Starting test suite at " + str(now) + " **",
+    "*******************************************************\n",
+))
+write_to_file(test_logfile, test_headline)
+
 
 class BaseDumbqTest(unittest.TestCase):
 
@@ -48,8 +62,8 @@ class BaseDumbqTest(unittest.TestCase):
         self.feedback = feedback
 
         # Just declare, lazy initialization
+        self.logger = logger
         self.hardware_info = None
-        self.logger = None
         self.dumbq_setup = None
         self.project_hub = None
         self.project_manager = None
@@ -72,10 +86,6 @@ class BaseDumbqTest(unittest.TestCase):
         self.www_dir = tempfile.mkdtemp()
         self.config["www_dir"] = self.www_dir
 
-        # Store all the messages to a file
-        _, self.test_logfile = tempfile.mkstemp()
-        self.config["test_logfile"] = self.test_logfile
-
         self.setup_config_files()
 
         # Bind mount directories
@@ -92,14 +102,13 @@ class BaseDumbqTest(unittest.TestCase):
         write_to_file(self.envvar_file, "=".join(self.envvar))
 
         # Tty enabled
-        if not os.environ.get("TERM"):
-            os.environ["TERM"] = "xterm"
-        self.config["base_tty"] = 1
+        self.config["base_tty"] = 2
 
     def setup_config_files(self):
         """Define the configuration files to be tested afterwards."""
-        dumbq = "/dumbq/bootstrap/dummy.sh"
-        bootstrap = "sft.cern.ch/lcg/external/experimental" + dumbq
+        dirname = os.path.dirname
+        dumbq_folder = dirname(dirname(dirname(os.path.abspath(__file__))))
+        bootstrap = os.path.join(dumbq_folder, "bootstraps/testing/dummy.sh")
         self.valid_config_content = "\n".join((
             "test1:80:sft.cern.ch:" + bootstrap,
             "test2:20:sft.cern.ch:" + bootstrap,
@@ -132,16 +141,15 @@ class BaseDumbqTest(unittest.TestCase):
         _, self.config_source = tempfile.mkstemp()
         self.config["config_source"] = self.config_source
 
-    def init_console_and_hw_info(self):
+    def init_hw_info(self):
         """Init logger and hardware info with its dependencies."""
-        self.logger = ConsoleLogger()
         self.hardware_info = HardwareInfo(
             self.config, self.feedback, self.logger
         )
 
     def init_dumbq_setup(self):
         """Init dumbq setup with its dependencies."""
-        self.init_console_and_hw_info()
+        self.init_hw_info()
         self.dumbq_setup = DumbqSetup(
             self.hardware_info, self.config, self.logger
         )
@@ -151,7 +159,7 @@ class BaseDumbqTest(unittest.TestCase):
         self.init_dumbq_setup()
         self.dumbq_setup.basic_setup()
         self.dumbq_setup.setup_dumbq_folders()
-        self.dumbq_setup.setup_logger(testing=True)
+        self.dumbq_setup.setup_logger()
         self.dumbq_setup.setup_public_www()
 
         config_content = config_content or self.valid_config_content
@@ -174,7 +182,8 @@ class BaseDumbqTest(unittest.TestCase):
         self.project_hub.parse_shared_and_guest_metadata_file()
 
         self.project_manager = ProjectManager(
-            self.project_hub, self.hardware_info, self.config, self.logger
+            self.project_hub, self.hardware_info, self.config,
+            self.feedback, self.logger
         )
 
     def tearDown(self):
@@ -236,7 +245,7 @@ class HardwareInfoTest(BaseDumbqTest):
 
     def test_basic_hw_info(self):
         """Test that HardwareInfo gets correct values."""
-        self.init_console_and_hw_info()
+        self.init_hw_info()
         cpu_count = multiprocessing.cpu_count()
         self.assertEqual(self.hardware_info.number_cores, cpu_count)
         self.assertIsInstance(self.hardware_info.total_memory, int)
@@ -256,19 +265,19 @@ class HardwareInfoTest(BaseDumbqTest):
         new_uuid = str(uuid4())
         content = "CERNVM_UUID={0}".format(new_uuid)
         write_to_file(self.cernvmconf_fp, content)
-        self.init_console_and_hw_info()
+        self.init_hw_info()
         self.assertEqual(self.hardware_info.host_uuid, new_uuid)
 
     def test_host_uuid_from_uuid_file(self):
         """Test host uuid is from the uuid file, if cernvm not present."""
         new_uuid = str(uuid4())
         write_to_file(self.uuid_fp, new_uuid)
-        self.init_console_and_hw_info()
+        self.init_hw_info()
         self.assertEqual(new_uuid, self.hardware_info.host_uuid)
 
     def test_host_uuid_is_generated_at_last(self):
         """Test host uuid is generated."""
-        self.init_console_and_hw_info()
+        self.init_hw_info()
         gen_uuid = self.hardware_info.host_uuid
         self.assertTrue(self.is_uuid(gen_uuid))
         self.assertEqual(gen_uuid, read_from_file(self.uuid_fp))
@@ -294,10 +303,10 @@ class DumbqSetupTest(BaseDumbqTest):
     def test_minimum_info_is_logged(self):
         """Test that, at least, certain hardware info is printed at init."""
         self.init_dumbq_setup()
-        self.dumbq_setup.setup_logger(testing=True)
+        self.dumbq_setup.setup_logger()
 
         displayed_info = "(cpu|mem|swap)=\w"
-        logger_output = read_from_file(self.test_logfile)
+        logger_output = read_from_file(test_logfile)
         matches = re.findall(displayed_info, logger_output)
 
         self.assertIn("cpu", matches)
@@ -368,15 +377,18 @@ class BaseProjectManagerTest(BaseDumbqTest):
 
     """Base class for utilities for both versions of ProjectManager tests."""
 
-    def _simulate_container_creation(self, container_name):
-        """As we cannot create a real container, simulate the environment."""
+    def get_wwwfolder_and_runfp(self, container_name):
         container_folder = "inst-{0}".format(container_name)
         container_info_fp = os.path.join(self.www_dir, container_folder)
-        run_fp = self.run_dir + "/" + container_name
-
-        os.mkdir(container_info_fp)
-        write_to_file(run_fp, "")
+        run_fp = os.path.join(self.run_dir, container_name)
         return container_info_fp, run_fp
+
+    def _simulate_container_creation(self, container_name):
+        """Simulate the environment as we cannot run project inside Docker."""
+        container_www_fp, run_fp = self.get_wwwfolder_and_runfp(container_name)
+        os.mkdir(container_www_fp)
+        write_to_file(run_fp, "")
+        return container_www_fp, run_fp
 
 
 class ProjectManagerTest(BaseProjectManagerTest):
@@ -396,18 +408,6 @@ class ProjectManagerTest(BaseProjectManagerTest):
         self.project_manager.update_project_stats()
         self.assertTrue(os.path.exists(index_filepath))
 
-    def test_free_space(self):
-        """Test there is free space for n (cores) containers at boot."""
-        self.init_project_manager()
-
-        try:
-            for i in range(multiprocessing.cpu_count()):
-                self._simulate_container_creation("test{0}".format(i))
-                self.assertTrue(self.project_manager.free_space())
-        except OSError:
-            failure = "This test fails because `cernvm-fork` is not installed"
-            self.fail(failure)
-
     def test_read_environment_variables(self):
         """Test that environment variables are read from fd0 and file."""
         self.init_project_manager()
@@ -422,29 +422,6 @@ class ProjectManagerTest(BaseProjectManagerTest):
         self.init_project_manager()
         picked_project = self.project_manager.pick_project()
         self.assertIn(picked_project, self.project_hub.get_projects())
-
-    def test_stop_project(self):
-        """Test that removal of a project is a success.
-
-        Although the project does not exist, the cernvm-fork command exits
-        successfully with a 0 errorcode, hence the test passes.
-        """
-        self.init_project_manager()
-        test_container_name = "test"
-        folder, flag = self._simulate_container_creation(test_container_name)
-
-        self.assertTrue(os.path.exists(folder))
-        self.assertTrue(os.path.exists(flag))
-
-        try:
-            result = self.project_manager.stop_project(test_container_name)
-        except OSError:
-            failure = "This test fails because `cernvm-fork` is not installed"
-            self.fail(failure)
-        else:
-            self.assertTrue(result)
-            self.assertFalse(os.path.exists(folder))
-            self.assertFalse(os.path.exists(flag))
 
 
 def with_cernvm_fork():
@@ -468,40 +445,80 @@ if inside_cernvm:
         not Docker. Otherwise, they will fail because ``cernvm-fork`` fails
         while creating a container inside Docker."""
 
+        def test_open_tty(self):
+            """Test that a terminal can be opened."""
+            self.config["base_tty"] = 2
+            self.init_project_manager()
+            any_opened_tty = self.project_manager.open_tty("test1")
+            self.assertTrue(any_opened_tty)
+
+        def test_run_project(self):
+            """Test that DumbQ is able to run projects, without tty."""
+            self.init_project_manager()
+            container_name = self.project_manager.run_project()
+            self.assertTrue(os.path.exists(self.config["www_dir"]))
+            self.assertTrue(container_name)
+            folder, flag = self.get_wwwfolder_and_runfp(container_name)
+            self.assertTrue(os.path.exists(flag))
+            self.assertTrue(os.path.exists(folder))
+
+        def test_stop_project(self):
+            """Test that removal of a project is a success.
+
+            Although the project does not exist, the cernvm-fork command exits
+            successfully with a 0 errorcode, hence the test passes.
+            """
+            self.init_project_manager()
+            container_name = self.project_manager.run_project()
+            folder, flag = self.get_wwwfolder_and_runfp(container_name)
+
+            try:
+                result = self.project_manager.stop_project(container_name)
+            except OSError:
+                failure = ("It probably fails because `cernvm-fork` "
+                           "isn't installed")
+                self.fail(failure)
+            else:
+                self.assertTrue(result)
+                self.assertFalse(os.path.exists(folder))
+                self.assertFalse(os.path.exists(flag))
+
+        def test_free_space(self):
+            """Test there is free space for n (cores) containers at boot."""
+            self.init_project_manager()
+
+            try:
+                for i in range(multiprocessing.cpu_count()):
+                    self.assertTrue(self.project_manager.free_space())
+                    self.project_manager.run_project()
+            except OSError:
+                failure = ("It probably fails because `cernvm-fork` "
+                           "isn't installed")
+                self.fail(failure)
+
         def test_cleanup_environment(self):
             """Test that resources from inactive containers are removed."""
             self.init_project_manager()
-            folder, flag = self._simulate_container_creation("test1")
-            folder2, flag2 = self._simulate_container_creation("test2")
+
+            container_name = self.project_manager.run_project()
+            folder, flag = self.get_wwwfolder_and_runfp(container_name)
+
+            container_name2 = self.project_manager.run_project()
+            folder2, flag2 = self.get_wwwfolder_and_runfp(container_name2)
 
             self.assertTrue(os.path.exists(folder))
             self.assertTrue(os.path.exists(folder2))
             self.assertTrue(os.path.exists(flag))
             self.assertTrue(os.path.exists(flag2))
 
+            self.project_manager.stop_project(container_name)
             self.project_manager.cleanup_environment()
 
             self.assertFalse(os.path.exists(folder))
-            self.assertFalse(os.path.exists(folder2))
             self.assertFalse(os.path.exists(flag))
-            self.assertFalse(os.path.exists(flag2))
+            self.assertTrue(os.path.exists(folder2))
+            self.assertTrue(os.path.exists(flag2))
 
-        def test_open_tty(self):
-            """Test that a terminal can be opened."""
-            self.init_project_manager()
-            self.project_manager.run_project()
-            any_opened_tty = (self.project_manager.open_tty("test1") or
-                              self.project_manager.open_tty("test2"))
-            self.assertTrue(any_opened_tty)
-
-        def test_run_project(self):
-            """Test that DumbQ is able to run projects."""
-            self.init_project_manager()
-            started_project = self.project_manager.run_project()
-            self.assertTrue(os.path.exists(self.config["www_dir"]))
-            self.assertTrue(started_project)
-            flag_fp = os.path.join(self.run_dir, started_project)
-            self.assertTrue(os.path.exists(flag_fp))
 
 else:
     info_tests = """
