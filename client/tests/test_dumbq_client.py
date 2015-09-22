@@ -489,7 +489,7 @@ if inside_cernvm:
         def test_open_tty(self):
             """Test that a terminal can be opened."""
             self.init_project_manager()
-            self.project_manager.run_project("test1")
+            self.project_manager.run_project()
             any_opened_tty = (self.project_manager.open_tty("test1") or
                               self.project_manager.open_tty("test2"))
             self.assertTrue(any_opened_tty)

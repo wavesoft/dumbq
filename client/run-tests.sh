@@ -33,7 +33,7 @@ c=$(echo $PYTHONPATH | tr ':' '\n' | grep -x -c $dir)
 stepid=$(($stepid + 1))
 
 echo "Step $stepid : Create floppy drive"
-[[ ! -f "/dev/fd0" ]] \
+[[ ! -z "/dev/fd0" ]] \
 	&& install -m 666 /dev/null $floppy \
 	|| sudo install -m 666 /dev/null $floppy
 
