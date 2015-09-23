@@ -59,6 +59,8 @@ The DumbQ Client has the following command-line syntax:
 </table>
 
 ## Testing
-If you want to contribute and test your code, just execute ``./run-tests.sh``.
-This will execute DumbQ Client within CernVM using __Docker__ and run a test
-suite. Please, install Docker in case you haven't before.
+* There is a build system composed of two scripts to run the tests. You can run the tests in both Docker and CernVM. In Docker I am importing the CernVM image and, as it is not completed and it has constraints, I am mocking the environment in CernVM. The benefit of using Docker is that you can get immediate feedback of the status of the program from your Docker setup, without having to use VirtualBox, set it up and run the tests.
+
+__NOTE__: In Docker, you cannot run all the tests because `cernvm-fork` does not work inside Docker. This is due to the fact that there is a clash between the LXC Docker environment and cernvm-fork, as cernvm-fork is mounting cgroup and other utilities that are already in the system (I wrote an email a week ago about these issues to Ioannis).
+
+If you want to contribute and test your code, just execute ``sudo -E ./run-tests.sh`` inside CernVM and ``./run-tests-docker.sh`` inside Docker.
