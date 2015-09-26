@@ -874,7 +874,7 @@ parser.add_argument("-p", "--pref", help=explanations["pref"],
                     dest="preference_config_source")
 parser.add_argument("-S", "--share", help=explanations["share"],
                     dest="guest_shared_mount")
-parser.add_argument("-t", "--tty", help=explanations["tty"],
+parser.add_argument("-t", "--tty", help=explanations["tty"], type=int,
                     dest="base_tty")
 parser.add_argument("-w", "--webdir", help=explanations["webdir"],
                     dest="www_dir")
