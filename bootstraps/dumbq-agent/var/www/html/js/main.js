@@ -48,9 +48,11 @@ $(function() {
 		// Create new element
 		var elm = $('<a></a>').appendTo($('<li></li>').appendTo(".navbar-projects-dynamic"))
 			.attr("class", "btn-" + iid)
-			.attr("href", "#"+iid)
+			.attr("href", url + instance['wwwroot'])
 			.text("CPU" + reserve_cpu(iid) + " (" + instance['project'] + ')')
-			.click(function() {
+			.click(function(e) {
+				// Block event
+				e.stopPropagation(); e.preventDefault();
 				// Switch to iframe host
 				$('.welcome-host').hide();
 				$('.iframe-host').show();
