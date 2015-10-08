@@ -6,7 +6,6 @@ $(function() {
 		var parts = url.split("/"); parts.pop();
 		url = parts.join("/");
 	}
-	url = 'http://127.0.0.1:8080';
 
 	// Instantiate a new DumbQ Front-End monitor
 	var dqfe = new DumbQ.Frontend();
