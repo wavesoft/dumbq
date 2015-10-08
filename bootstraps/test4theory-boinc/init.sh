@@ -18,6 +18,7 @@ DUMBQ_METRICS_BIN="${DUMBQ_UTILS_DIR}/dumbq-metrics"
 
 # Test4Theory WebApp
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
+T4T_WEBAPP_DST="/var/www/html"
 
 #
 # Parses the USER_DATA value and retrieves the USER_ID.
@@ -49,15 +50,15 @@ get_user_id()
   # Start logcat with all the interesting log files
   ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
-    /var/log/bootstrap-out.log[cyan] \
-    /var/log/bootstrap-err.log[magenta] \
-    /var/log/copilot-agent.log[cyan] \
+    ${$T4T_WEBAPP_DST}/logs/bootstrap-out.log[cyan] \
+    ${$T4T_WEBAPP_DST}/logs/bootstrap-err.log[magenta] \
+    ${$T4T_WEBAPP_DST}/logs/copilot-agent.log[cyan] \
     /tmp/mcplots-job.out[green] \
     /tmp/mcplots-job.err[red]
 )&
 
 # Redirect stdout/err
-exec 2>/var/log/bootstrap-err.log >/var/log/bootstrap-out.log
+exec 2>${$T4T_WEBAPP_DST}/logs/bootstrap-err.log >${$T4T_WEBAPP_DST}/logs/bootstrap-out.log
 
 # 1) Start required services
 # ----------------------------------
@@ -69,7 +70,6 @@ service cron start
 # ----------------------------------
 
 # Unzip the t4t-webapp
-T4T_WEBAPP_DST=/var/www/html
 /bin/tar zxvf $T4T_WEBAPP_TGZ -C $T4T_WEBAPP_DST > /dev/null 2>&1
 
 # Create missing directories
