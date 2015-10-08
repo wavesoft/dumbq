@@ -42,6 +42,9 @@ WWW_LOGS="${WWW_ROOT}/logs"
 mkdir -p ${WWW_LOGS}
 chmod a+xr ${WWW_LOGS}
 
+# Copy website files
+cp -r ${DUMBQ_BOOTSTRAP_DIR}/var/www/html/* "${WWW_ROOT}"
+
 ######################################
 # Override command-line config
 ######################################
