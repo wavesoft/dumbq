@@ -7,6 +7,10 @@ $(function() {
 		url = parts.join("/");
 	}
 
+	// Trim hash
+	if (url.indexOf("#"))
+		url = url.split("#")[0];
+
 	// Trim trailing slash
 	if (url.substr(url.length-1) == "/")
 		url = url.substr(0, url.length-1);
