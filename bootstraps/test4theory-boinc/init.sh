@@ -12,7 +12,9 @@ JID_VER="-g"
 # Less important parameters
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/${BOOTSTRAP_NAME}"
-DUMBQ_LOGCAT="${DUMBQ_DIR}/client/utils/dumbq-logcat"
+DUMBQ_UTILS_DIR="${DUMBQ_DIR}/client/utils"
+DUMBQ_LOGCAT_BIN="${DUMBQ_UTILS_DIR}/dumbq-logcat"
+DUMBQ_METRICS_BIN="${DUMBQ_UTILS_DIR}/dumbq-metrics"
 
 # Test4Theory WebApp
 T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
@@ -45,13 +47,13 @@ get_user_id()
 
 (
   # Start logcat with all the interesting log files
-  ${DUMBQ_LOGCAT} \
+  ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
     /var/log/bootstrap-out.log[cyan] \
     /var/log/bootstrap-err.log[magenta] \
     /var/log/copilot-agent.log[cyan] \
-    /tmp/agentWorkDir/out[green] \
-    /tmp/agentWorkDir/err[red]
+    /var/www/html/logs/job.out[green] \
+    /var/www/html/logs/job.err[red]
 )&
 
 # Redirect stdout/err
@@ -147,7 +149,19 @@ fi
 cp $BOINC_USER_ID_CACHE /var/www/html/logs
 cp /var/log/start-perl-copilot.log /var/www/html/logs
 
-# 6) Start Co-Pilot from CVMFS
+# 6) Prepare DumbQ-Compatible environment
+# ----------------------------------
+
+# Start the log-monitoring agent that will update the dumbq metrics file
+python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
+
+# Include DUMBQ binary dir in environment
+export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
+
+# Set dumbq status in order to activate instance
+${DUMBQ_METRICS_BIN} --set status=initializing
+
+# 7) Start Co-Pilot from CVMFS
 # ----------------------------------
 
 # Create the ~/copilot-user-data file

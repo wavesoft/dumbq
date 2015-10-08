@@ -7,6 +7,10 @@ $(function() {
 		url = parts.join("/");
 	}
 
+	// Trim trailing slash
+	if (url.substr(url.length-1) == "/")
+		url = url.substr(0, url.length-1);
+
 	// Instantiate a new DumbQ Front-End monitor
 	var dqfe = new DumbQ.Frontend();
 
