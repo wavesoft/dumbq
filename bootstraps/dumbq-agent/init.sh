@@ -111,8 +111,10 @@ if [ $SWAP_SIZE -eq 0 ]; then
 	let MIN_SWAP_SIZE*=${CPUS}
 
 	# Delete swap file if too small
-	SWAP_SIZE=$(stat -c%s "$SWAPFILE")
-	[ ${SWAP_SIZE} -lt ${MIN_SWAP_SIZE} ] && rm ${SWAPFILE}
+	if [ -f "${SWAPFILE}" ]; then
+		SWAP_SIZE=$(stat -c%s "$SWAPFILE")
+		[ ${SWAP_SIZE} -lt ${MIN_SWAP_SIZE} ] && rm ${SWAPFILE}
+	fi
 
 	# Create swapfile if missing
 	if [ ! -f "${SWAPFILE}" ]; then
