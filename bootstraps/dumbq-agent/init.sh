@@ -6,10 +6,13 @@
 
 # DumbQ location on cvmfs
 DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
-DUMBQ_AGENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
+DUMBQ_CLIENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
 DUMBQ_BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/dumbq-agent"
 DUMBQ_STATUS_BIN="${DUMBQ_BOOTSTRAP_DIR}/bin/dumbq-status"
 DUMBQ_VERSION_FLAG="${DUMBQ_BOOTSTRAP_DIR}/version"
+
+# Configuration defaults
+DUMBQ_CONFIG_FILE="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/server/default.conf"
 
 # Where to put the swapfile
 SWAPFILE="/mnt/.rw/swapfile"
@@ -37,6 +40,13 @@ echo $$ > $PIDFILE
 WWW_LOGS="${WWW_ROOT}/logs"
 mkdir -p ${WWW_LOGS}
 chmod a+xr ${WWW_LOGS}
+
+######################################
+# Override command-line config
+######################################
+
+# Override config with first argument
+[ ! -z "$1" ] && DUMBQ_CONFIG_FILE="$1"
 
 ######################################
 # 1) TTYs
@@ -335,7 +345,7 @@ while true; do
 	
 	# Start agent
 	echo "" > ${WWW_LOGS}/dumbq-agent.log
-	${DUMBQ_AGENT_BIN} --tty 3 2>>${WWW_LOGS}/dumbq-agent.log >>${WWW_LOGS}/dumbq-agent.log
+	${DUMBQ_CLIENT_BIN} -c "${DUMBQ_CONFIG_FILE}" --tty 3 2>>${WWW_LOGS}/dumbq-agent.log >>${WWW_LOGS}/dumbq-agent.log
 
 	# If for any reason it failed, re-start in 60 seconds
 	sleep 60
