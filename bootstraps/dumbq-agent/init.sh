@@ -10,6 +10,7 @@ DUMBQ_CLIENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
 DUMBQ_BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/dumbq-agent"
 DUMBQ_STATUS_BIN="${DUMBQ_BOOTSTRAP_DIR}/bin/dumbq-status"
 DUMBQ_VERSION_FLAG="${DUMBQ_BOOTSTRAP_DIR}/version"
+READ_FLOPPY_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-copilot/usr/bin/readFloppy.pl"
 
 # Configuration defaults
 DUMBQ_CONFIG_FILE="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq/server/default.conf"
@@ -308,19 +309,29 @@ service httpd start
 # 3) Extract BOINC details from user-data
 ######################################
 
-# Locate BOINC User & Host ID
-BOINC_USERID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
-BOINC_HOSTID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
-if [ -z "$BOINC_USERID" ]; then
-  BOINC_USERID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
-  BOINC_HOSTID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
-fi
+# If we have a floppy drive, fetch data from floppy
+if [ -b /dev/fd0 ]; then
 
-# Prepare dumbq-metadata if required
-if [ ! -z "$BOINC_USERID" ]; then
-	# Populate shared metadata for BOINC
-	echo "BOINC_USERID=${BOINC_USERID}" > /var/lib/dumbq-meta
-	[ ! -z "$BOINC_HOSTID" ] && echo "BOINC_HOSTID=${BOINC_HOSTID}" >> /var/lib/dumbq-meta
+	# Expose floppy metadata to all containers
+	${READ_FLOPPY_BIN} > /var/lib/dumbq-meta
+
+else
+
+	# Locate BOINC User & Host ID
+	BOINC_USERID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+	BOINC_HOSTID=$(cat /var/lib/amiconfig-online/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+	if [ -z "$BOINC_USERID" ]; then
+	  BOINC_USERID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_userid | awk -F'=' '{print $2}')
+	  BOINC_HOSTID=$(cat /var/lib/amiconfig/2007-12-15/user-data 2>/dev/null | grep -i boinc_hostid | awk -F'=' '{print $2}')
+	fi
+
+	# Prepare dumbq-metadata if required
+	if [ ! -z "$BOINC_USERID" ]; then
+		# Populate shared metadata for BOINC
+		echo "BOINC_USERID=${BOINC_USERID}" > /var/lib/dumbq-meta
+		[ ! -z "$BOINC_HOSTID" ] && echo "BOINC_HOSTID=${BOINC_HOSTID}" >> /var/lib/dumbq-meta
+	fi
+
 fi
 
 ######################################
@@ -332,7 +343,7 @@ chvt 1
 clear
 echo ""
 echo "* * * * * * * * * * * * * * * * * * * * * * *"
-echo "* DumbQ VM v1.0 - Maintenance Console       *"
+echo "* DumbQ VM v1.2 - Maintenance Console       *"
 echo "* Press enter to display the log-in prompt  *"
 echo "* * * * * * * * * * * * * * * * * * * * * * *"
 echo ""
