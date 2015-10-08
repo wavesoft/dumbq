@@ -14,11 +14,11 @@ switch ($option) {
                 exit 0;
         }
         case /--stdout-file/ {
-                print "/tmp/agentWorkDir/out";
+                print "/var/www/html/logs/job.out";
                 exit 0;
         }
         case /--stderr-file/ {
-                print "/tmp/agentWorkDir/err";
+                print "/var/www/html/logs/job.err";
                 exit 0;
         }
         case /--print-logs/ {

@@ -73,6 +73,7 @@ T4T_WEBAPP_DST=/var/www/html
 # Create missing directories
 mkdir ${T4T_WEBAPP_DST}/logs
 mkdir ${T4T_WEBAPP_DST}/job
+mkdir ${T4T_WEBAPP_DST}/copilot
 
 # 3) Install required binaries
 # ----------------------------------
@@ -111,16 +112,22 @@ if [ -z "$AGENT_JABBER_ID" ]; then
     # Use specified UserID
     USER_ID="g-${USER_ID}"
 
+    # Log
+    echo "INFO: Challenge mode using ID: ${USER_ID}"
+
   else
 
-    # Check for BOINC_AUTHENTICATOR from the environment 
-    # variables of DumbQ 
+    # Check for BOINC_AUTHENTICATOR from the shared metadata
+    BOINC_AUTHENTICATOR=$(cat /var/lib/dumbq-meta | grep BOINC_AUTHENTICATOR)
 
     # If we have a BOINC authenticator, get USER_ID from there
-    if [ -n $DUMBQ_BOINC_AUTHENTICATOR ]; then
-      USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$DUMBQ_BOINC_AUTHENTICATOR -k -s)
+    if [ -n $BOINC_AUTHENTICATOR ]; then
+      USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$BOINC_AUTHENTICATOR -k -s)
     fi
     get_user_id
+
+    # Log
+    echo "INFO: BOINC mode using ID: ${USER_ID}"
 
   fi
 
@@ -128,6 +135,9 @@ if [ -z "$AGENT_JABBER_ID" ]; then
   export AGENT_JABBER_ID="agent_""$USER_ID"_"$N_CPU"_"$BOOTSTRAP_VER"_"$(uuidgen)"_"$JID_VER"
   echo "export AGENT_JABBER_ID=$AGENT_JABBER_ID" > $BOINC_USER_ID_CACHE
   chmod -w $BOINC_USER_ID_CACHE
+
+  # Log
+  echo "INFO: Using Jabber ID ${AGENT_JABBER_ID}"
 
 fi
 
