@@ -52,8 +52,8 @@ get_user_id()
     /var/log/bootstrap-out.log[cyan] \
     /var/log/bootstrap-err.log[magenta] \
     /var/log/copilot-agent.log[cyan] \
-    /var/www/html/logs/job.out[green] \
-    /var/www/html/logs/job.err[red]
+    /tmp/mcplots-job.out[green] \
+    /tmp/mcplots-job.err[red]
 )&
 
 # Redirect stdout/err
