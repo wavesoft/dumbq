@@ -72,11 +72,12 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 
 		# Strip line
 		line = line.strip()
+		lline = line.lower()
 
 		#
 		# (0 -> 1) Wait until we get 'Input parameters:'
 		#
-		if (self.state == 0) and ("Input parameters" in line):
+		if (self.state == 0) and ("input parameters" in lline):
 
 			# We are parsing input parameters
 			self.state = 1
@@ -84,7 +85,7 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		#
 		# (2) Wait until we get 'Events processed'
 		#
-		if (self.state == 2) and ("Events processed" in line):
+		if (self.state == 2) and ("events processed" in lline):
 
 			# Parse how many events are processed
 			parts = line.split(" ")
