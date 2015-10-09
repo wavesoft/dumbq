@@ -50,9 +50,9 @@ get_user_id()
   # Start logcat with all the interesting log files
   ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
-    ${$T4T_WEBAPP_DST}/logs/bootstrap-out.log[cyan] \
-    ${$T4T_WEBAPP_DST}/logs/bootstrap-err.log[magenta] \
-    ${$T4T_WEBAPP_DST}/logs/copilot-agent.log[cyan] \
+    /var/www/html/logs/bootstrap-out.log[cyan] \
+    /var/www/html/logs/bootstrap-err.log[magenta] \
+    /var/www/html/logs/copilot-agent.log[cyan] \
     /tmp/mcplots-job.out[green] \
     /tmp/mcplots-job.err[red]
 )&
@@ -88,6 +88,13 @@ chmod a+rx /usr/bin/copilot-config
 
 # 4) Cache and prepare Jabber ID
 # ----------------------------------
+
+# Log dumb metadata for debug purposes
+if [ -f /var/lib/dumbq-meta ]; then
+  echo "--[ Global Metadata ]-------------------------"
+  cat /var/lib/dumbq-meta
+  echo "----------------------------------------------"
+fi
 
 # BOINC User ID Cache
 BOINC_USER_ID_CACHE="/var/lib/copilot-agent-uuid-saved.$BOOTSTRAP_VER"
