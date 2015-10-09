@@ -31,16 +31,8 @@ get_user_id()
 ###########################################################
 {
   if [[ $USER_DATA =~ '<am_get_info_reply>.*<success/>.*<id>(.*)</id>.*</am_get_info_reply>' ]]; then
-    [ $? -eq 0 ] && USER_ID=${BASH_REMATCH[1]}
+    [ $? -eq 0 ] && BOINC_USERID=${BASH_REMATCH[1]}
   fi
-
-  #if [ "$DUMBQ_BOINC_ID" != "$USER_ID" ]; then
-  #  echo "Error: BOINC User ID from the wrapper does not match."
-    echo "Got from wrapper: $DUMBQ_BOINC_ID"
-    echo "Got from server: $USER_ID"
-    echo "Server response: $USER_DATA"
-    USER_ID="s-$USER_ID"
-  #fi
 }
 
 # 0) Redirect and start logcat 
@@ -60,13 +52,7 @@ get_user_id()
 # Redirect stdout/err
 exec 2>${T4T_WEBAPP_DST}/logs/bootstrap-err.log >${T4T_WEBAPP_DST}/logs/bootstrap-out.log
 
-# 1) Start required services
-# ----------------------------------
-
-# Start cron
-service cron start
-
-# 2) Install the test4theory app
+# 1) Install the test4theory app
 # ----------------------------------
 
 # Unzip the t4t-webapp
@@ -77,7 +63,7 @@ mkdir ${T4T_WEBAPP_DST}/logs
 mkdir ${T4T_WEBAPP_DST}/job
 mkdir ${T4T_WEBAPP_DST}/copilot
 
-# 3) Install required binaries
+# 2) Install required binaries
 # ----------------------------------
 
 # Copy the config and debug info scripts to /usr/bin
@@ -86,7 +72,7 @@ cp ${BOOTSTRAP_DIR}/bin/copilot-config /usr/bin
 chmod a+rx /usr/bin/copilot-debug-info
 chmod a+rx /usr/bin/copilot-config
 
-# 4) Cache and prepare Jabber ID
+# 3) Cache and prepare Jabber ID
 # ----------------------------------
 
 # Log dumb metadata for debug purposes
@@ -126,14 +112,21 @@ if [ -z "$AGENT_JABBER_ID" ]; then
 
   else
 
-    # Check for BOINC_AUTHENTICATOR from the shared metadata
-    BOINC_AUTHENTICATOR=$(cat /var/lib/dumbq-meta | grep BOINC_AUTHENTICATOR)
+    # Get shared metadata properties
+    BOINC_AUTHENTICATOR=$(cat /var/lib/dumbq-meta | grep BOINC_AUTHENTICATOR | awk -F'=' '{print $2}')
+    BOINC_USERID=$(cat /var/lib/dumbq-meta | grep BOINC_USERID | awk -F'=' '{print $2}')
+    BOINC_HOSTID=$(cat /var/lib/dumbq-meta | grep BOINC_HOSTID | awk -F'=' '{print $2}')
 
-    # If we have a BOINC authenticator, get USER_ID from there
-    if [ -n $BOINC_AUTHENTICATOR ]; then
-      USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$BOINC_AUTHENTICATOR -k -s)
+    # If we don't have a USERID, obtain through authenticator
+    if [ -z "$BOINC_USERID" ] && [ ! -z "$BOINC_AUTHENTICATOR" ]; then
+      if [ -n $BOINC_AUTHENTICATOR ]; then
+        USER_DATA=$(curl $BOINC_SERVER/$BOINC_PROJECT'/am_get_info.php?account_key='$BOINC_AUTHENTICATOR -k -s)
+      fi
+      get_user_id
     fi
-    get_user_id
+
+    # Calculate a BOINC user-id
+    USER_ID="s-${BOINC_USERID}"
 
     # Log
     echo "INFO: BOINC mode using ID: ${USER_ID}"
@@ -150,13 +143,13 @@ if [ -z "$AGENT_JABBER_ID" ]; then
 
 fi
 
-# 5) Prepare user interface
+# 4) Prepare user interface
 # ----------------------------------
 
 cp $BOINC_USER_ID_CACHE ${T4T_WEBAPP_DST}/logs
 cp /var/log/start-perl-copilot.log ${T4T_WEBAPP_DST}/logs
 
-# 6) Prepare DumbQ-Compatible environment
+# 5) Prepare DumbQ-Compatible environment
 # ----------------------------------
 
 # Start the log-monitoring agent that will update the dumbq metrics file
@@ -168,7 +161,7 @@ export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 # Set dumbq status in order to activate instance
 ${DUMBQ_METRICS_BIN} --set status=initializing
 
-# 7) Start Co-Pilot from CVMFS
+# 6) Start Co-Pilot from CVMFS
 # ----------------------------------
 
 # Create the ~/copilot-user-data file
