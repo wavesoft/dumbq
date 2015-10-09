@@ -49,6 +49,9 @@ get_user_id()
     /tmp/mcplots-job.err[red]
 )&
 
+# Create missing directories
+mkdir ${T4T_WEBAPP_DST}/logs
+
 # Redirect stdout/err
 exec 2>${T4T_WEBAPP_DST}/logs/bootstrap-err.log >${T4T_WEBAPP_DST}/logs/bootstrap-out.log
 
@@ -59,7 +62,6 @@ exec 2>${T4T_WEBAPP_DST}/logs/bootstrap-err.log >${T4T_WEBAPP_DST}/logs/bootstra
 /bin/tar zxvf $T4T_WEBAPP_TGZ -C $T4T_WEBAPP_DST > /dev/null 2>&1
 
 # Create missing directories
-mkdir ${T4T_WEBAPP_DST}/logs
 mkdir ${T4T_WEBAPP_DST}/job
 mkdir ${T4T_WEBAPP_DST}/copilot
 
