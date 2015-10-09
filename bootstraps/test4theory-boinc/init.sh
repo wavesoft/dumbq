@@ -50,15 +50,15 @@ get_user_id()
   # Start logcat with all the interesting log files
   ${DUMBQ_LOGCAT_BIN} \
     --prefix="[%d/%m/%y %H:%M:%S] " \
-    /var/www/html/logs/bootstrap-out.log[cyan] \
-    /var/www/html/logs/bootstrap-err.log[magenta] \
-    /var/www/html/logs/copilot-agent.log[cyan] \
+    ${T4T_WEBAPP_DST}/logs/bootstrap-out.log[cyan] \
+    ${T4T_WEBAPP_DST}/logs/bootstrap-err.log[magenta] \
+    ${T4T_WEBAPP_DST}/logs/copilot-agent.log[cyan] \
     /tmp/mcplots-job.out[green] \
     /tmp/mcplots-job.err[red]
 )&
 
 # Redirect stdout/err
-exec 2>${$T4T_WEBAPP_DST}/logs/bootstrap-err.log >${$T4T_WEBAPP_DST}/logs/bootstrap-out.log
+exec 2>${T4T_WEBAPP_DST}/logs/bootstrap-err.log >${T4T_WEBAPP_DST}/logs/bootstrap-out.log
 
 # 1) Start required services
 # ----------------------------------
@@ -153,8 +153,8 @@ fi
 # 5) Prepare user interface
 # ----------------------------------
 
-cp $BOINC_USER_ID_CACHE /var/www/html/logs
-cp /var/log/start-perl-copilot.log /var/www/html/logs
+cp $BOINC_USER_ID_CACHE ${T4T_WEBAPP_DST}/logs
+cp /var/log/start-perl-copilot.log ${T4T_WEBAPP_DST}/logs
 
 # 6) Prepare DumbQ-Compatible environment
 # ----------------------------------
