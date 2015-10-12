@@ -204,10 +204,10 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 		chmod 0600 ${SWAPFILE}
 
 		# Allocae swap
-		mkswap ${SWAPFILE}
+		mkswap "${SWAPFILE}"
 
 		# Activate with low priority	
-		swapon -p 50 ${SWAPFILE}
+		swapon -p 50 "${SWAPFILE}"
 
 	fi
 
