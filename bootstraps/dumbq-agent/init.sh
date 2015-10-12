@@ -112,6 +112,9 @@ if [ ! -f /etc/init.d/dumbq-cleanup ]; then
 	chkconfig --add dumbq-cleanup
 	chkconfig dumbq-cleanup on
 
+	# Start it, so the stop script will work in this boot
+	service dumbq-cleanup start
+
 fi
 
 # Add banner on tty1
