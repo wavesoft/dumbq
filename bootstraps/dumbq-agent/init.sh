@@ -129,7 +129,7 @@ else
 	echo "INFO: Creating Z-RAM swap"
 
 	# Calculate how much Z-Ram to allocate per core
-	ZRAM_MEMORY_PERCORE_KB=$((MEMORY_KB / CPUS)))
+	ZRAM_MEMORY_PERCORE_KB=$((MEMORY_KB / CPUS))
 	
 	# Convert in bytes
 	ZRAM_SIZE_BYTES=$((ZRAM_MEMORY_PERCORE_KB * 1024))
