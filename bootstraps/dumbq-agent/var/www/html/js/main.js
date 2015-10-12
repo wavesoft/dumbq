@@ -49,15 +49,15 @@ $(function() {
 		var elm = $('<a></a>').appendTo($('<li></li>').appendTo(".navbar-projects-dynamic"))
 			.attr("class", "btn-" + iid)
 			.attr("href", url + instance['wwwroot'])
+			.attr("target", "contentFrame")
 			.text("CPU" + reserve_cpu(iid) + " (" + instance['project'] + ')')
 			.click(function(e) {
 				// Block event
-				e.stopPropagation(); e.preventDefault();
 				// Switch to iframe host
 				$('.welcome-host').hide();
 				$('.iframe-host').show();
-				// Focus to URL
-				$(".iframe-host > iframe").attr("src", url + instance['wwwroot'])
+				// // Focus to URL (This now uses the standard <a target="..">/<iframe name="..">)
+				// $(".iframe-host > iframe").attr("src", url + instance['wwwroot'])
 				// Focus on element
 				$('.navbar-projects-dynamic > li').removeClass('active');
 				$(this).parent().addClass('active');

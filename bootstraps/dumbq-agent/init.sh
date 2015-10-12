@@ -21,10 +21,11 @@ SWAPFILE="/mnt/.rw/swapfile"
 # Apache server www root
 WWW_ROOT="/var/www/html"
 
-# Get some metrics from our current environment
-CPUS=$(cat /proc/cpuinfo | grep -c processor)
-MEMORY=$(free -m | grep -i mem | awk '{print $2}')
-DISK=$(df -m / 2>&1 | grep '/' | awk '{print $2}')
+# How much memory to allocate per core (Kb)
+MEMORY_PERCORE_KB=2097152
+
+# Get 1/2 of system memory for Z-RAM
+ZRAM_FRACTION=2
 
 ######################################
 # Multiple executions guard
@@ -100,32 +101,103 @@ EOF
 
 fi
 
+# Add banner on tty1
+chvt 1
+clear
+echo ""
+echo "INFO: Initializing Worker Node"
+
 ######################################
 # 2) SWAP & System features
 ######################################
 
-# Check if swap is activated already in the system
-# ... in that case, do nothing
-SWAP_SIZE=$(free | grep -i swap | awk '{print $2}')
-if [ $SWAP_SIZE -eq 0 ]; then
+# Get some metrics from our current environment
+CPUS=$(cat /proc/cpuinfo | grep -c processor)
+MEMORY_KB=$(grep MemTotal /proc/meminfo | grep -E --only-matching '[[:digit:]]+')
+MEMORY_MB=$((MEMORY_KB / 1024))
+DISK=$(df -m / 2>&1 | grep '/' | awk '{print $2}')
 
-	# Expected minimum swap size: 1G/Core
-	MIN_SWAP_SIZE=1073741824
-	let MIN_SWAP_SIZE*=${CPUS}
+# How much memory to allocate for Z-RAM
+ZRAM_MEMORY_KB=$((MEMORY_KB / ZRAM_FRACTION))
 
-	# Delete swap file if too small
+# Calculate how much memory is rezerved for z-ram
+if [ ${ZRAM_FRACTION} -eq 0 ]; then
+	ZRAM_MEMORY=0
+else
+
+	# Log
+	echo "INFO: Creating Z-RAM swap"
+
+	# Calculate how much Z-Ram to allocate per core
+	ZRAM_MEMORY_PERCORE_KB=$((MEMORY_KB / CPUS)))
+	
+	# Convert in bytes
+	ZRAM_SIZE_BYTES=$((ZRAM_MEMORY_PERCORE_KB * 1024))
+
+	# Allocate 1 zram device per core
+    modprobe zram num_devices=$CPUS
+
+    # initialize the devices
+    CPUS_DECR=$((CPUS - 1))
+    for i in $(seq 0 $CPUS_DECR); do
+	    echo ${ZRAM_SIZE_BYTES} > /sys/block/zram$i/disksize
+    done
+
+    # Creating swap filesystems
+    for i in $(seq 0 $CPUS_DECR); do
+	    mkswap /dev/zram$i
+    done
+
+    # Switch the swaps on with high priority
+    for i in $(seq 0 $CPUS_DECR); do
+	    swapon -p 100 /dev/zram$i
+    done
+
+fi
+
+# Calculate how much real memory do we have per core and how much
+# swap will we need per core
+MEMORY_REAL_PERCORE_KB=$(( (MEMORY_KB - ZRAM_MEMORY_KB) / 2 ))
+SWAP_PER_CORE_KB=$(( MEMORY_PERCORE_KB - MEMORY_REAL_PERCORE_KB ))
+
+# If we need swap, allocate now
+if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
+
+	# Log
+	echo "INFO: Creating Disk swap"
+
+	# Calculate required swap size
+	SWAP_SIZE_KB=$((SWAP_PER_CORE_KB * CPUS))
+
+	# Swap in multiplicants of 256 Mb
+	SWAP_ROUND_KB=262144
+	SWAP_SIZE_KB=$(( ((SWAP_SIZE_KB+SWAP_ROUND_KB-1)/SWAP_ROUND_KB) * SWAP_ROUND_KB ))
+
+	# Check if we have a swapfile of a valid size
 	if [ -f "${SWAPFILE}" ]; then
-		SWAP_SIZE=$(stat -c%s "$SWAPFILE")
-		[ ${SWAP_SIZE} -lt ${MIN_SWAP_SIZE} ] && rm ${SWAPFILE}
+		
+		# Get the size of the swapfile in KB
+		SWAPFILE_SIZE=$(stat -c%s "$SWAPFILE")
+		SWAPFILE_SIZE_KB=$((SWAPFILE_SIZE * 1024))
+
+		# If the size is invalid, remove
+		if [ $SWAPFILE_SIZE_KB -lt ${SWAP_SIZE_KB} ]; then
+			rm "${SWAPFILE}"
+		else
+			SWAP_SIZE_KB=${SWAPFILE_SIZE_KB}
+		fi
+
 	fi
 
-	# Create swapfile if missing
+	# If we still don't have a sapfile, allocate one
 	if [ ! -f "${SWAPFILE}" ]; then
 
-		# Create swapfile
+		# Create parent folder
 		mkdir -p $(dirname ${SWAPFILE})
-		let COUNT=${MIN_SWAP_SIZE}/4096
-		dd if=/dev/zero of=${SWAPFILE} bs=4096 count=${COUNT}
+
+		# Create swapfile in blocks of 64k
+		SWAPFILE_BLOCKS=$((SWAP_SIZE_KB/64))
+		dd if=/dev/zero of=${SWAPFILE} bs=65536 count=${SWAPFILE_BLOCKS}
 
 		# Fix permissions
 		chown root:root ${SWAPFILE}
@@ -134,18 +206,12 @@ if [ $SWAP_SIZE -eq 0 ]; then
 		# Allocae swap
 		mkswap ${SWAPFILE}
 
-		# Update SWAP_SIZE
-		SWAP_SIZE=${MIN_SWAP_SIZE}
+		# Activate with low priority	
+		swapon -p 50 ${SWAPFILE}
 
 	fi
 
-	# Activate swap
-	swapon ${SWAPFILE}
-
 fi
-
-# Convert SWAP_SIZE metric to megabytes
-let SWAP_SIZE/=1048576
 
 # Make sure we reboot on kernel panic
 if [ $(cat /proc/sys/kernel/panic) -eq 0 ]; then
@@ -277,7 +343,7 @@ cat <<EOF > ${WWW_ROOT}/machine.json
 	"vmid": "${HOST_UUID}",
 	"info": {
 		"cpus": "${CPUS}",
-		"memory": "${MEMORY}",
+		"memory": "${MEMORY_MB}",
 		"swap": "${SWAP_SIZE}",
 		"disk": "${DISK}"
 	},
