@@ -106,7 +106,7 @@ if [ ! -f /etc/init.d/dumbq-cleanup ]; then
 
 	# Copy cleanup bootstrap
 	cp "${DUMBQ_BOOTSTRAP_DIR}/etc/init.d/dumbq-cleanup" /etc/init.d/dumbq-cleanup
-	chmd +x /etc/init.d/dumbq-cleanup
+	chmod +x /etc/init.d/dumbq-cleanup
 
 	# Enable script
 	chkconfig --add dumbq-cleanup
