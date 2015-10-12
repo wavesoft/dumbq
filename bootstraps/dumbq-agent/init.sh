@@ -101,6 +101,19 @@ EOF
 
 fi
 
+# Deploy cleanup scripts
+if [ ! -f /etc/init.d/dumbq-cleanup ]; then
+
+	# Copy cleanup bootstrap
+	cp "${DUMBQ_BOOTSTRAP_DIR}/etc/init.d/dumbq-cleanup" /etc/init.d/dumbq-cleanup
+	chmd +x /etc/init.d/dumbq-cleanup
+
+	# Enable script
+	chkconfig --add dumbq-cleanup
+	chkconfig dumbq-cleanup on
+
+fi
+
 # Add banner on tty1
 chvt 1
 clear
