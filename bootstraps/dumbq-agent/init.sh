@@ -265,10 +265,30 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 			chmod 0600 ${SWAPFILE}
 
 			# Allocae swap
-			mkswap "${SWAPFILE}"
+			mkswap "${SWAPFILE}" >/dev/null 2>/tmp/err.log
+			if [ $? -ne 0 ]; then
 
-			# Activate with low priority	
-			swapon -p 50 "${SWAPFILE}"
+				# Log error
+				echo "ERROR: Unable to create swap filesystem!"
+		    	echo "# BEGIN STDERR"
+		    	cat /tmp/err.log
+		    	echo "# END STDERR"
+
+		    else 
+
+				# Activate with low priority	
+				swapon -p 50 "${SWAPFILE}" >/dev/null 2>/tmp/err.log
+				if [ $? -ne 0 ]; then
+
+					# Log error
+					echo "ERROR: Unable to activate swap!"
+			    	echo "# BEGIN STDERR"
+			    	cat /tmp/err.log
+			    	echo "# END STDERR"
+
+				fi
+
+		    fi
 
 		fi
 
