@@ -17,7 +17,7 @@ DUMBQ_LOGCAT_BIN="${DUMBQ_UTILS_DIR}/dumbq-logcat"
 DUMBQ_METRICS_BIN="${DUMBQ_UTILS_DIR}/dumbq-metrics"
 
 # Test4Theory WebApp
-T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/share/t4t-webapp.tgz"
+T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/experimental/t4t-webapp/share/t4t-webapp.tgz"
 T4T_WEBAPP_DST="/var/www/html"
 
 #
@@ -167,9 +167,9 @@ ${DUMBQ_METRICS_BIN} --set status=initializing
 # ----------------------------------
 
 # Create the ~/copilot-user-data file
-/cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-config --user-data 2>&1 >/dev/null 
+/cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-copilot/bin/copilot-config --user-data 2>&1 >/dev/null 
 
 # Select configuration and start co-pilot
 export COPILOT_CONFIG=${BOOTSTRAP_DIR}/etc/copilot
-/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/cernvm-copilot/bin/copilot-agent
+/bin/env PATH=$PATH LANG=C  perl -I /cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-copilot/lib/perl5/site_perl/5.8.8/ /cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-copilot/bin/copilot-agent
 
