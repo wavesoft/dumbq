@@ -133,16 +133,16 @@ MEMORY_KB=$(grep MemTotal /proc/meminfo | grep -E --only-matching '[[:digit:]]+'
 MEMORY_MB=$((MEMORY_KB / 1024))
 DISK=$(df -m / 2>&1 | grep '/' | awk '{print $2}')
 
-# How much memory to allocate for Z-RAM
-ZRAM_MEMORY_KB=$((MEMORY_KB / ZRAM_FRACTION))
-
 # Calculate how much memory is rezerved for z-ram
 if [ ${ZRAM_FRACTION} -eq 0 ]; then
-	ZRAM_MEMORY=0
+
+	# If ZRAM_FRACTION is zero, disable z-ram
+	ZRAM_MEMORY_KB=0
+
 else
 
-	# Log
-	echo "INFO: Creating Z-RAM swap"
+	# How much memory to allocate for Z-RAM
+	ZRAM_MEMORY_KB=$((MEMORY_KB / ZRAM_FRACTION))
 
 	# Calculate how much Z-Ram to allocate per core
 	ZRAM_MEMORY_PERCORE_KB=$((MEMORY_KB / CPUS))
@@ -150,30 +150,61 @@ else
 	# Convert in bytes
 	ZRAM_SIZE_BYTES=$((ZRAM_MEMORY_PERCORE_KB * 1024))
 
+	# Log
+	echo "INFO: Creating Z-RAM swap (${ZRAM_MEMORY_KB}Kb)"
+
 	# Allocate 1 zram device per core
-    modprobe zram num_devices=$CPUS
+    modprobe zram num_devices=$CPUS >/dev/null 2>/tmp/err.log
+    if [ $? -ne 0 ]; then
 
-    # initialize the devices
-    CPUS_DECR=$((CPUS - 1))
-    for i in $(seq 0 $CPUS_DECR); do
-	    echo ${ZRAM_SIZE_BYTES} > /sys/block/zram$i/disksize
-    done
+    	# Error
+    	echo "ERROR: Unable to load zram kernel module!"
+    	echo "# BEGIN STDERR"
+    	cat /tmp/err.log
+    	echo "# END STDERR"
 
-    # Creating swap filesystems
-    for i in $(seq 0 $CPUS_DECR); do
-	    mkswap /dev/zram$i
-    done
+    else
 
-    # Switch the swaps on with high priority
-    for i in $(seq 0 $CPUS_DECR); do
-	    swapon -p 100 /dev/zram$i
-    done
+	    # initialize the devices
+	    CPUS_DECR=$((CPUS - 1))
+	    for i in $(seq 0 $CPUS_DECR); do
+		    echo ${ZRAM_SIZE_BYTES} > /sys/block/zram$i/disksize
+	    done
+
+	    # Creating swap filesystems
+	    ERR=0; rm -f /tmp/err.log
+	    for i in $(seq 0 $CPUS_DECR); do
+		    mkswap /dev/zram$i >/dev/null 2>>/tmp/err.log
+		    [ $? -ne 0 ] && let ERR++
+	    done
+	    if [ $ERR -ne 0 ]; then
+	    	echo "ERROR: ${ERR} error(s) occured while allocating zram swap space!"
+	    	echo "# BEGIN STDERR"
+	    	cat /tmp/err.log
+	    	echo "# END STDERR"
+	    fi
+
+	    # Switch the swaps on with high priority
+	    ERR=0; rm -f /tmp/err.log
+	    for i in $(seq 0 $CPUS_DECR); do
+		    swapon -p 100 /dev/zram$i >/dev/null 2>>/tmp/err.log
+		    [ $? -ne 0 ] && let ERR++
+	    done
+	    if [ $ERR -ne 0 ]; then
+	    	echo "ERROR: ${ERR} error(s) occured while enabling swap space!"
+	    	echo "# BEGIN STDERR"
+	    	cat /tmp/err.log
+	    	echo "# END STDERR"
+	    fi
+
+
+	fi
 
 fi
 
 # Calculate how much real memory do we have per core and how much
 # swap will we need per core
-MEMORY_REAL_PERCORE_KB=$(( (MEMORY_KB - ZRAM_MEMORY_KB) / 2 ))
+MEMORY_REAL_PERCORE_KB=$(( (MEMORY_KB - ZRAM_MEMORY_KB) / CPUS ))
 SWAP_PER_CORE_KB=$(( MEMORY_PERCORE_KB - MEMORY_REAL_PERCORE_KB ))
 
 # If we need swap, allocate now
@@ -201,6 +232,7 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 			rm "${SWAPFILE}"
 		else
 			SWAP_SIZE_KB=${SWAPFILE_SIZE_KB}
+			echo "INFO: Swapfile size is sufficient (${SWAP_SIZE_KB}Kb)"
 		fi
 
 	fi
@@ -208,22 +240,37 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 	# If we still don't have a sapfile, allocate one
 	if [ ! -f "${SWAPFILE}" ]; then
 
+		# Log
+		echo "INFO: Allocating swapfile (${SWAP_SIZE_KB}Kb)"
+
 		# Create parent folder
 		mkdir -p $(dirname ${SWAPFILE})
 
 		# Create swapfile in blocks of 64k
 		SWAPFILE_BLOCKS=$((SWAP_SIZE_KB/64))
-		dd if=/dev/zero of=${SWAPFILE} bs=65536 count=${SWAPFILE_BLOCKS}
+		rm -f /tmp/err.log
+		dd if=/dev/zero of=${SWAPFILE} bs=65536 count=${SWAPFILE_BLOCKS} >/dev/null 2>/tmp/err.log
+		if [ $? -ne 0 ]; then
 
-		# Fix permissions
-		chown root:root ${SWAPFILE}
-		chmod 0600 ${SWAPFILE}
+			# Log error
+			echo "ERROR: Unable to allocate swap space!"
+	    	echo "# BEGIN STDERR"
+	    	cat /tmp/err.log
+	    	echo "# END STDERR"
 
-		# Allocae swap
-		mkswap "${SWAPFILE}"
+		else
 
-		# Activate with low priority	
-		swapon -p 50 "${SWAPFILE}"
+			# Fix permissions
+			chown root:root ${SWAPFILE}
+			chmod 0600 ${SWAPFILE}
+
+			# Allocae swap
+			mkswap "${SWAPFILE}"
+
+			# Activate with low priority	
+			swapon -p 50 "${SWAPFILE}"
+
+		fi
 
 	fi
 
