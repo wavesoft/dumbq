@@ -32,7 +32,7 @@ stop_dumbq () {
     # Remove mark
     rm -f /var/lock/subsys/dumbq-cleanup
 
-    echo "Stopping DumbQ client:"
+    echo "Stopping DumbQ client"
 
     # Stop status tty
     initctl stop dumbq-status CONSOLE=2
