@@ -451,6 +451,10 @@ if [ ! -f /etc/httpd/conf.d/cors.conf ]; then
     DocumentRoot /var/www/html
     Options Indexes
     Header set Access-Control-Allow-Origin "*"
+	Header unset ETag
+	Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+	Header set Pragma "no-cache"
+	Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
 </VirtualHost>
 EOF
 
