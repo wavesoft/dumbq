@@ -74,7 +74,13 @@ cp ${BOOTSTRAP_DIR}/bin/copilot-config /usr/bin
 chmod a+rx /usr/bin/copilot-debug-info
 chmod a+rx /usr/bin/copilot-config
 
-# 3) Cache and prepare Jabber ID
+# 3) Hack to use gateway as our DNS
+# ----------------------------------
+
+GW_IP=$(cat /etc/sysconfig/network-scripts/ifcfg-eth0 | grep GATEWAY= | awk -F'=' '{print $2}')
+echo "nameserver ${GW_IP}" > /etc/resolv.conf
+
+# 4) Cache and prepare Jabber ID
 # ----------------------------------
 
 # Log dumb metadata for debug purposes
@@ -145,13 +151,14 @@ if [ -z "$AGENT_JABBER_ID" ]; then
 
 fi
 
-# 4) Prepare user interface
+
+# 5) Prepare user interface
 # ----------------------------------
 
 cp $BOINC_USER_ID_CACHE ${T4T_WEBAPP_DST}/logs
 cp /var/log/start-perl-copilot.log ${T4T_WEBAPP_DST}/logs
 
-# 5) Prepare DumbQ-Compatible environment
+# 6) Prepare DumbQ-Compatible environment
 # ----------------------------------
 
 # Start the log-monitoring agent that will update the dumbq metrics file
@@ -163,7 +170,7 @@ export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 # Set dumbq status in order to activate instance
 ${DUMBQ_METRICS_BIN} --set status=initializing
 
-# 6) Start Co-Pilot from CVMFS
+# 7) Start Co-Pilot from CVMFS
 # ----------------------------------
 
 # Create the ~/copilot-user-data file

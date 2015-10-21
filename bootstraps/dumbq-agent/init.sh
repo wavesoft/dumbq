@@ -459,6 +459,9 @@ fi
 # Start apache if not started
 service httpd start
 
+# Start DNSMasq
+service dnsmasq start
+
 ######################################
 # 3) Extract BOINC details from user-data
 ######################################

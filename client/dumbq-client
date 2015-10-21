@@ -497,7 +497,7 @@ function start_container {
         cp "${SHARED_META_FILE}" "/mnt/.rw/containers/${CONTAINER_NAME}/root/${GUEST_META_FILE}"
     fi
 
-    # Copy and replace timezone information
+    # HACK #1: Copy and replace timezone information
     cp -f -b /etc/localtime "/mnt/.rw/containers/${CONTAINER_NAME}/root/etc/localtime"
 
     # Store details in run-flag
