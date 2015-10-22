@@ -60,7 +60,13 @@ cp ${BOOTSTRAP_DIR}/bin/copilot-config /usr/bin
 chmod a+rx /usr/bin/copilot-debug-info
 chmod a+rx /usr/bin/copilot-config
 
-# 3) Start databridge-client
+# 3) Hack to use gateway as our DNS
+# ----------------------------------
+
+GW_IP=$(cat /etc/sysconfig/network-scripts/ifcfg-eth0 | grep GATEWAY= | awk -F'=' '{print $2}')
+echo "nameserver ${GW_IP}" > /etc/resolv.conf
+
+# 4) Start databridge-client
 # ----------------------------------
 
 # Log dumb metadata for debug purposes
