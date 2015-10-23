@@ -470,6 +470,9 @@ service dnsmasq start
 # 3) Extract BOINC details from user-data
 ######################################
 
+# Reset metadata
+echo "" > /var/lib/dumbq-meta
+
 # If we have a floppy drive, fetch data from floppy
 if [ -b /dev/fd0 ]; then
 
