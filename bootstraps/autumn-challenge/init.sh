@@ -82,6 +82,10 @@ python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
 # Include DUMBQ binary dir in environment
 export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 
+# Check if we should add debug arguments to the databridge client
+DEBUG_ARGS=""
+[ -f /var/lib/dumbq-meta ] && [ $(cat /var/lib/dumbq-meta | grep DEBUG= | awk -F'=' '{print $2}' | grep -c 'databridge') -eq 1 ] && DEBUG_ARGS="--debug"
+
 # Start databridge agent
 echo "" > ${T4T_WEBAPP_LOGDIR}/databridge-client.log
-${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_DOMAIN}" 2>>${T4T_WEBAPP_LOGDIR}/databridge-client.log >>${T4T_WEBAPP_LOGDIR}/databridge-client.log
+${DATABRIDGE_AGENT_BIN} "35331" "4c2ce9458a4750eafd589c9b4269fc2b" "${DATABRIDGE_DOMAIN}" ${DEBUG_ARGS} 2>>${T4T_WEBAPP_LOGDIR}/databridge-client.log >>${T4T_WEBAPP_LOGDIR}/databridge-client.log

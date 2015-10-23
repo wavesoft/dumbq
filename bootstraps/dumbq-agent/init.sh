@@ -495,6 +495,12 @@ else
 
 fi
 
+# Expose the vm_debug kernel command-line
+if [ $(cat /proc/cmdline | grep -ic vm_debug=) ]; then
+	DEBUG_ARGS=$(cat /proc/cmdline | sed -r 's/.*vm_debug=([^ ]+).*/\1/i')
+	echo "DEBUG=${DEBUG_ARGS}" >> /var/lib/dumbq-meta
+fi
+
 ######################################
 # 5) GO!
 ######################################
@@ -504,7 +510,7 @@ chvt 1
 clear
 echo ""
 echo "* * * * * * * * * * * * * * * * * * * * * * *"
-echo "* DumbQ VM v1.2 - Maintenance Console       *"
+echo "* DumbQ VM v1.3 - Maintenance Console       *"
 echo "* Press enter to display the log-in prompt  *"
 echo "* * * * * * * * * * * * * * * * * * * * * * *"
 echo ""
