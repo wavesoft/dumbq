@@ -496,7 +496,7 @@ else
 fi
 
 # Expose the vm_debug kernel command-line
-if [ $(cat /proc/cmdline | grep -ic vm_debug=) ]; then
+if [ $(cat /proc/cmdline | grep -ic vm_debug=) -eq 1 ]; then
 	DEBUG_ARGS=$(cat /proc/cmdline | sed -r 's/.*vm_debug=([^ ]+).*/\1/i')
 	echo "DEBUG=${DEBUG_ARGS}" >> /var/lib/dumbq-meta
 fi
