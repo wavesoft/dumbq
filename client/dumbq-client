@@ -38,7 +38,7 @@ SHARED_META_FILE="/var/lib/dumbq-meta"
 GUEST_META_FILE="${SHARED_META_FILE}"
 CONFIG_PREFERENCE="${DUMBQ_LIBDIR}/preference.conf"
 CONFIG_CACHE="${DUMBQ_LIBDIR}/config.conf"
-CERNVM_FORK_BIN="/usr/bin/cernvm-fork"
+CERNVM_FORK_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-fork/usr/bin/cernvm-fork"
 GUEST_SHARED_MOUNT="var/www/html"
 HOST_WEB_DIR="/var/www/html"
 BIND_MOUNT=""
@@ -496,9 +496,6 @@ function start_container {
         # Copy metadata file to guest
         cp "${SHARED_META_FILE}" "/mnt/.rw/containers/${CONTAINER_NAME}/root/${GUEST_META_FILE}"
     fi
-
-    # HACK #1: Copy and replace timezone information
-    cp -f -b /etc/localtime "/mnt/.rw/containers/${CONTAINER_NAME}/root/etc/localtime"
 
     # Store details in run-flag
     echo "{\"uuid\": \"${CONTAINER_UUID}\", \"wwwroot\": \"/inst-${CONTAINER_NAME}\", \"project\":\"${P_NAME}\", \"memory\": ${P_QUOTA_MEM}, \"swap\": ${P_QUOTA_SWAP}, \"cpus\": ${P_QUOTA_CPU} }" > ${DUMBQ_RUNDIR}/${CONTAINER_NAME}
