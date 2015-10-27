@@ -37,9 +37,9 @@ if 'DUMBQ_WWWROOT' in os.environ:
 parser = argparse.ArgumentParser(prog="dumbq-metrics", description="Helper utility to update the DumbQ public metrics database with errors that occured.")
 parser.add_argument('--db', nargs="?", metavar="path", action='store', default="%s/metrics.json" % wwwdir,
 					help='Specify the location to the metrics database')
-parser.add_argument('--code', '-c', nargs="?", metavar="code", action='store', default="" % wwwdir,
+parser.add_argument('--code', '-c', nargs="?", metavar="code", action='store', default="",
 					help='Specify the machine-readable error code')
-parser.add_argument('--level', '-l', nargs="?", metavar="level", action='store', default=2 % wwwdir,
+parser.add_argument('--level', '-l', nargs="?", metavar="level", action='store', default=2,
 					help='Specify the machine-readable error level')
 parser.add_argument('message', metavar='msg', type=str, nargs=1,
 					help='The error message to log')
