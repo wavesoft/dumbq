@@ -270,7 +270,7 @@ def add(key, value):
 		load()
 
 	# Update database
-	if '.' in value:
+	if '.' in str(value):
 		if not hasKey(key):
 			setKey( key, float(value) )
 		else:
