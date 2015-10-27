@@ -320,6 +320,26 @@ function pick_project {
 
 }
 
+# Clean unused console description files
+function clean_unused_ttys {
+    local TTY_ID=""
+    local EXPECT_ID=""
+    
+    # Iterate over the tty flag files
+    for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
+
+        # Get the pid of the tty monitor
+        TTY_PID=$(cat ${TTY_FILE} | awk '{print $1}')
+
+        # Check if this pid has died and reclaim slot
+        kill -0 ${TTY_PID} 2>/dev/null
+        if [ $? -ne 0 ]; then
+            rm $TTY_FILE
+        fi
+
+    done
+}
+
 # Open a console for the given container on a free tty
 function open_tty_console {
     local CONTAINER_NAME=$1
@@ -327,7 +347,7 @@ function open_tty_console {
     # Start collecting tty ID
     local TTY_ID=""
     local EXPECT_ID=""
-    
+
     # Check if there are ttys in use
     for TTY_FILE in $(ls ${DUMBQ_TTYDIR}/* 2>/dev/null | sort); do
 
@@ -661,6 +681,9 @@ update_host_uuid
 # Clean-up stale containers that were there possibly 
 # from a previous boot
 cleanup_stale_forks
+
+# Clean-up stale ttys
+clean_unused_ttys
 
 # Prepare host web directory
 if [ ! -z "$HOST_WEB_DIR" ]; then
