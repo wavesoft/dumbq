@@ -61,7 +61,7 @@ try:
 
 	# Collect error
 	errors = metrics.getKey("errors", [])
-	errors.append([ ts, args.message, args.code, args.level ])
+	errors.append([ ts, args.msg, args.code, args.level ])
 	metrics.setKey("errors", errors)
 
 	# Set error timestamp
