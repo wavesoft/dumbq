@@ -1,0 +1,76 @@
+#!/usr/bin/python
+#
+# DumbQ - A lightweight job scheduler
+# Copyright (C) 2014-2015  Ioannis Charalampidis, PH-SFT, CERN
+
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+
+import argparse
+import time
+import json
+import sys
+import os
+
+# Include dumbq utilities library path
+sys.path.append( os.path.join( os.path.dirname( os.path.realpath(__file__) ), "dumbq" ) )
+import metrics
+
+# Locate the dumbq web dir
+wwwdir = "/var/www/html"
+if 'DUMBQ_WWWROOT' in os.environ:
+	wwwdir = os.environ['DUMBQ_WWWROOT']
+
+# Parse arguments
+parser = argparse.ArgumentParser(prog="dumbq-metrics", description="Helper utility to update the DumbQ public metrics database with errors that occured.")
+parser.add_argument('--db', nargs="?", metavar="path", action='store', default="%s/metrics.json" % wwwdir,
+					help='Specify the location to the metrics database')
+parser.add_argument('--code', '-c', nargs="?", metavar="code", action='store', default="" % wwwdir,
+					help='Specify the machine-readable error code')
+parser.add_argument('--level', '-l', nargs="?", metavar="level", action='store', default=2 % wwwdir,
+					help='Specify the machine-readable error level')
+parser.add_argument('message', metavar='msg', type=str, nargs=1,
+					help='The error message to log')
+args = parser.parse_args()
+
+# Configure metrics
+metrics.configure(
+	database=args.db,
+	autocommit=False
+	)
+
+try:
+
+	# Load metrics
+	metrics.load()
+
+	# Get error timestamp
+	ts = time.time()
+
+	# Collect error
+	errors = metrics.getKey("errors", [])
+	errors.append([ ts, args.message, args.code, args.level ])
+	metrics.setKey("errors", errors)
+
+	# Set error timestamp
+	metrics.set("error_timestamp", ts)
+	metrics.add("error_counter", 1)
+
+except ValueError as e:
+	sys.stderr.write("ERROR: Invalid syntax")
+	sys.exit(1)
+
+# Commit database changes
+metrics.commit()
