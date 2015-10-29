@@ -226,7 +226,7 @@
 				this.instances.push(ii);
 
 				// Trigger event
-				$(this).triggerHandler('created.instance', [ ii ])
+				$(this).triggerHandler('created_instance', [ ii ])
 			}
 
 		}
@@ -247,8 +247,10 @@
 
 			// If not found, it's gone 
 			if (!found) {
+				// Mark instance offline
+				this.__markOfflineInstance( ii );
 				// Trigger event
-				$(this).triggerHandler('destroyed.instance', [ ii ])
+				$(this).triggerHandler('destroyed_instance', [ ii ])
 				// Remove and maintain index
 				this.instances.splice(i,1);
 				i -= 1;
