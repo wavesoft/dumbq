@@ -390,6 +390,9 @@ fi
 # Start cron if not started
 service crond start
 
+# Copy DumbQ version to prevent an initial reboot
+cp ${DUMBQ_VERSION_FLAG} /var/log/dumbq.version
+
 ######################################
 # 4) Web services
 ######################################
