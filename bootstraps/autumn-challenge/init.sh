@@ -24,6 +24,13 @@ T4T_WEBAPP_TGZ="/cvmfs/sft.cern.ch/lcg/external/experimental/t4t-webapp/t4t-weba
 T4T_WEBAPP_DST="/var/www/html"
 T4T_WEBAPP_LOGDIR=${T4T_WEBAPP_DST}/logs
 
+# Test4Theory DumbQ Webapp
+DUMBQ_WEBAPP_TGZ="${BOOTSTRAP_DIR}/var/www/dumbq-webapp.tgz"
+DUMBQ_WEBAPP_DST="/var/www/html"
+
+# Include DUMBQ binary dir in environment
+export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
+
 # 0) Redirect and start logcat 
 # ----------------------------------
 
@@ -50,6 +57,12 @@ exec 2>${T4T_WEBAPP_LOGDIR}/bootstrap-err.log >${T4T_WEBAPP_LOGDIR}/bootstrap-ou
 
 # Unzip the t4t-webapp
 /bin/tar zxvf $T4T_WEBAPP_TGZ -C $T4T_WEBAPP_DST > /dev/null 2>&1
+
+# Unzip the t4t-dumbq webapp
+/bin/tar zxvf $DUMBQ_WEBAPP_TGZ -C $DUMBQ_WEBAPP_DST > /dev/null 2>&1
+
+# Let dumbq know that we have our own custom webapp
+dumbq-metrics --set webapp=webapp.html
 
 # 2) Patch binaries queried by jobs
 # ----------------------------------
@@ -78,9 +91,6 @@ fi
 
 # Start the log-monitoring agent that will update the dumbq metrics file
 python ${BOOTSTRAP_DIR}/bin/mcprod-monitor&
-
-# Include DUMBQ binary dir in environment
-export PATH="${PATH}:${DUMBQ_UTILS_DIR}"
 
 # Check if we should add debug arguments to the databridge client
 DEBUG_ARGS=""
