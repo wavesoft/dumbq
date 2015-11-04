@@ -75,9 +75,18 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		lline = line.lower()
 
 		#
+		# Find the 'analysesNames=' line
+		#
+		if (self.state == 0) and ("analysesnames" in lline):
+
+			# Define analyses
+			parts = line.split("=")
+			metrics.set( "config/analysesNames", parts[1].split(" ") )
+
+		#
 		# (0 -> 1) Wait until we get 'Input parameters:'
 		#
-		if (self.state == 0) and ("input parameters" in lline):
+		elif (self.state == 0) and ("input parameters" in lline):
 
 			# We are parsing input parameters
 			self.state = 1
@@ -85,7 +94,7 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 		#
 		# (2) Wait until we get 'Events processed'
 		#
-		if (self.state == 2) and ("events processed" in lline):
+		elif (self.state == 0) and ("events processed" in lline):
 
 			# Parse how many events are processed
 			parts = line.split(" ")
@@ -137,7 +146,7 @@ class MCPlotsStdoutMonitor(LogMonitorLogic):
 			# If we got an empty line, switch back to state 0
 			if not line:
 				# Switch to 'running state'
-				self.state = 2
+				self.state = 0
 
 			else:
 				# Get key/value parameters
