@@ -320,6 +320,18 @@ EOF
 
 fi
 
+# Make sure IP Forwarding is enabled in sysctl
+#
+# IMPORTANT: If not done like this, if a sysctl reload occurs
+#            at any other time the ip forwarding will be disabled!
+#
+if [ $(grep -c 'net.ipv4.ip_forward = 1' /etc/sysctl.conf) -eq 0 ]; then
+	# Enable IP Forwarding in the file
+	sed -i.bak "s/net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/g" /etc/sysctl.conf
+	# Apply changes
+	/sbin/sysctl -p /etc/sysctl.conf
+fi
+
 ######################################
 # 3) Scheduled reboots every day
 ######################################
