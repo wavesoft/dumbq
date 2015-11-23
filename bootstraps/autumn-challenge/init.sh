@@ -79,7 +79,12 @@ chmod a+rx /usr/bin/copilot-config
 GW_IP=$(cat /etc/sysconfig/network-scripts/ifcfg-eth0 | grep GATEWAY= | awk -F'=' '{print $2}')
 echo "nameserver ${GW_IP}" > /etc/resolv.conf
 
-# 4) Start databridge-client
+# 4) Disable powersaving options
+# ----------------------------------
+
+setterm -blank 0 -powersave off
+
+# 5) Start databridge-client
 # ----------------------------------
 
 # Log dumb metadata for debug purposes
