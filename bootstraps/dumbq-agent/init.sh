@@ -27,6 +27,10 @@ MEMORY_PERCORE_KB=2097152
 # Get 1/2 of system memory for Z-RAM
 ZRAM_FRACTION=2
 
+# Which TTY to use for logging
+LOG_TTY=1
+LOG_TTY_DEV="/dev/tty${LOG_TTY}"
+
 ######################################
 # Multiple executions guard
 ######################################
@@ -37,6 +41,10 @@ if [ -f "$PIDFILE" ] && kill -0 `cat $PIDFILE` 2>/dev/null; then
     exit 1
 fi  
 echo $$ > $PIDFILE
+
+# Place a banner on tty1 so people dont't wait for ever
+clear > $LOG_TTY_DEV
+echo -e "\nINFO: Initializing Worker Node" > $LOG_TTY_DEV
 
 # Create www log directory
 WWW_LOGS="${WWW_ROOT}/logs"
@@ -117,12 +125,6 @@ if [ ! -f /etc/init.d/dumbq-cleanup ]; then
 
 fi
 
-# Add banner on tty1
-chvt 1
-clear
-echo ""
-echo "INFO: Initializing Worker Node"
-
 ######################################
 # 2) SWAP & System features
 ######################################
@@ -151,17 +153,17 @@ else
 	ZRAM_SIZE_BYTES=$((ZRAM_MEMORY_PERCORE_KB * 1024))
 
 	# Log
-	echo "INFO: Creating Z-RAM swap (${ZRAM_MEMORY_KB}Kb)"
+	echo "INFO: Creating Z-RAM swap (${ZRAM_MEMORY_KB}Kb)" > $LOG_TTY_DEV
 
 	# Allocate 1 zram device per core
     modprobe zram num_devices=$CPUS >/dev/null 2>/tmp/err.log
     if [ $? -ne 0 ]; then
 
     	# Error
-    	echo "ERROR: Unable to load zram kernel module!"
-    	echo "# BEGIN STDERR"
-    	cat /tmp/err.log
-    	echo "# END STDERR"
+    	echo "ERROR: Unable to load zram kernel module!" > $LOG_TTY_DEV
+    	echo "# BEGIN STDERR"  > $LOG_TTY_DEV
+    	cat /tmp/err.log  > $LOG_TTY_DEV
+    	echo "# END STDERR" > $LOG_TTY_DEV
 
     else
 
@@ -178,10 +180,10 @@ else
 		    [ $? -ne 0 ] && let ERR++
 	    done
 	    if [ $ERR -ne 0 ]; then
-	    	echo "ERROR: ${ERR} error(s) occured while allocating zram swap space!"
-	    	echo "# BEGIN STDERR"
-	    	cat /tmp/err.log
-	    	echo "# END STDERR"
+	    	echo "ERROR: ${ERR} error(s) occured while allocating zram swap space!" > $LOG_TTY_DEV
+	    	echo "# BEGIN STDERR" > $LOG_TTY_DEV
+	    	cat /tmp/err.log > $LOG_TTY_DEV
+	    	echo "# END STDERR" > $LOG_TTY_DEV
 	    fi
 
 	    # Switch the swaps on with high priority
@@ -191,10 +193,10 @@ else
 		    [ $? -ne 0 ] && let ERR++
 	    done
 	    if [ $ERR -ne 0 ]; then
-	    	echo "ERROR: ${ERR} error(s) occured while enabling swap space!"
-	    	echo "# BEGIN STDERR"
-	    	cat /tmp/err.log
-	    	echo "# END STDERR"
+	    	echo "ERROR: ${ERR} error(s) occured while enabling swap space!" > $LOG_TTY_DEV
+	    	echo "# BEGIN STDERR" > $LOG_TTY_DEV
+	    	cat /tmp/err.log > $LOG_TTY_DEV
+	    	echo "# END STDERR" > $LOG_TTY_DEV
 	    fi
 
 
@@ -211,7 +213,7 @@ SWAP_PER_CORE_KB=$(( MEMORY_PERCORE_KB - MEMORY_REAL_PERCORE_KB ))
 if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 
 	# Log
-	echo "INFO: Creating Disk swap"
+	echo "INFO: Creating Disk swap" > $LOG_TTY_DEV
 
 	# Calculate required swap size
 	SWAP_SIZE_KB=$((SWAP_PER_CORE_KB * CPUS))
@@ -232,7 +234,7 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 			rm "${SWAPFILE}"
 		else
 			SWAP_SIZE_KB=${SWAPFILE_SIZE_KB}
-			echo "INFO: Swapfile size is sufficient (${SWAP_SIZE_KB}Kb)"
+			echo "INFO: Swapfile size is sufficient (${SWAP_SIZE_KB}Kb)" > $LOG_TTY_DEV
 		fi
 
 	fi
@@ -241,7 +243,7 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 	if [ ! -f "${SWAPFILE}" ]; then
 
 		# Log
-		echo "INFO: Allocating swapfile (${SWAP_SIZE_KB}Kb)"
+		echo "INFO: Allocating swapfile (${SWAP_SIZE_KB}Kb)" > $LOG_TTY_DEV
 
 		# Create parent folder
 		mkdir -p $(dirname ${SWAPFILE})
@@ -253,10 +255,10 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 		if [ $? -ne 0 ]; then
 
 			# Log error
-			echo "ERROR: Unable to allocate swap space!"
-	    	echo "# BEGIN STDERR"
-	    	cat /tmp/err.log
-	    	echo "# END STDERR"
+			echo "ERROR: Unable to allocate swap space!" > $LOG_TTY_DEV
+	    	echo "# BEGIN STDERR" > $LOG_TTY_DEV
+	    	cat /tmp/err.log > $LOG_TTY_DEV
+	    	echo "# END STDERR" > $LOG_TTY_DEV
 
 		else
 
@@ -269,10 +271,10 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 			if [ $? -ne 0 ]; then
 
 				# Log error
-				echo "ERROR: Unable to create swap filesystem!"
-		    	echo "# BEGIN STDERR"
-		    	cat /tmp/err.log
-		    	echo "# END STDERR"
+				echo "ERROR: Unable to create swap filesystem!" > $LOG_TTY_DEV
+		    	echo "# BEGIN STDERR" > $LOG_TTY_DEV
+		    	cat /tmp/err.log > $LOG_TTY_DEV
+		    	echo "# END STDERR" > $LOG_TTY_DEV
 
 		    else 
 
@@ -281,10 +283,10 @@ if [ ${SWAP_PER_CORE_KB} -gt 0 ]; then
 				if [ $? -ne 0 ]; then
 
 					# Log error
-					echo "ERROR: Unable to activate swap!"
-			    	echo "# BEGIN STDERR"
-			    	cat /tmp/err.log
-			    	echo "# END STDERR"
+					echo "ERROR: Unable to activate swap!" > $LOG_TTY_DEV
+			    	echo "# BEGIN STDERR" > $LOG_TTY_DEV
+			    	cat /tmp/err.log > $LOG_TTY_DEV
+			    	echo "# END STDERR" > $LOG_TTY_DEV
 
 				fi
 
@@ -525,13 +527,13 @@ fi
 
 # Banner on vt#1
 chvt 1
-clear
-echo ""
-echo "* * * * * * * * * * * * * * * * * * * * * * *"
-echo "* DumbQ VM v1.3 - Maintenance Console       *"
-echo "* Press enter to display the log-in prompt  *"
-echo "* * * * * * * * * * * * * * * * * * * * * * *"
-echo ""
+clear > $LOG_TTY_DEV
+echo "" > $LOG_TTY_DEV
+echo "* * * * * * * * * * * * * * * * * * * * * * *" > $LOG_TTY_DEV
+echo "* DumbQ VM v1.3 - Maintenance Console       *" > $LOG_TTY_DEV
+echo "* Press enter to display the log-in prompt  *" > $LOG_TTY_DEV
+echo "* * * * * * * * * * * * * * * * * * * * * * *" > $LOG_TTY_DEV
+echo "" > $LOG_TTY_DEV
 
 # Change to vt#2
 chvt 2
