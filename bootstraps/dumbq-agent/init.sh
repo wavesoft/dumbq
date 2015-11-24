@@ -340,10 +340,10 @@ fi
 
 # We should reboot our VM every 24h 
 # in order to apply hotfixes through CVMFS
-if [ ! -f /etc/cron.daily/reboot ]; then
+if [ ! -f /etc/cron.hourly/reboot ]; then
 
 	# Create reboot script
-	cat <<EOF > /etc/cron.daily/reboot
+	cat <<EOF > /etc/cron.hourly/reboot
 #!/bin/bash
 
 # Get the local version
@@ -378,7 +378,7 @@ done
 # Reboot
 reboot
 EOF
-	chmod +x /etc/cron.daily/reboot
+	chmod +x /etc/cron.hourly/reboot
 
 fi
 
