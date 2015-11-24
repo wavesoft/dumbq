@@ -82,7 +82,7 @@ echo "nameserver ${GW_IP}" > /etc/resolv.conf
 # 4) Disable powersaving options
 # ----------------------------------
 
-setterm -blank 0 -powersave off
+TERM=linux setterm -blank 0 -powersave off
 
 # 5) Start databridge-client
 # ----------------------------------
