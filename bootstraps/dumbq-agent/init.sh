@@ -9,6 +9,7 @@ DUMBQ_DIR="/cvmfs/sft.cern.ch/lcg/external/experimental/dumbq"
 DUMBQ_CLIENT_BIN="${DUMBQ_DIR}/client/dumbq-client"
 DUMBQ_BOOTSTRAP_DIR="${DUMBQ_DIR}/bootstraps/dumbq-agent"
 DUMBQ_STATUS_BIN="${DUMBQ_BOOTSTRAP_DIR}/bin/dumbq-status"
+DUMBQ_CHECK_NETWORK_BIN="${DUMBQ_BOOTSTRAP_DIR}/bin/dumbq-check-network"
 DUMBQ_VERSION_FLAG="${DUMBQ_BOOTSTRAP_DIR}/version"
 READ_FLOPPY_BIN="/cvmfs/sft.cern.ch/lcg/external/experimental/cernvm-copilot/usr/bin/readFloppy.pl"
 
@@ -401,8 +402,24 @@ EOF
 
 fi
 
+# We should test the network connectivity and re-configure if
+# something goes wrong, every 10 minutes or so.
+if [ ! -f /etc/cron.d/dumbq-check-network ]; then
+
+	# Copy network polling script locally
+	# (What happens if CMVS is inaccessible?)
+	cp ${DUMBQ_CHECK_NETWORK_BIN} /usr/local/bin/dumbq-check-network
+
+	# Create a network polling cron job
+	cat <<EOF > /etc/cron.d/dumbq-check-network
+* * * * * root /usr/local/bin/dumbq-check-network
+EOF
+	chmod +x /etc/cron.d/dumbq-check-network
+
+fi
+
 # Start cron if not started
-service crond start
+service crond restart
 
 # Copy DumbQ version to prevent an initial reboot
 cp ${DUMBQ_VERSION_FLAG} /var/log/dumbq.version

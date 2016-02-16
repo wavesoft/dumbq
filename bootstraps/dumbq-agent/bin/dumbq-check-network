@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# DumbQ Network Monitor Script
+# (C) Copyright 2015, Ioannis Charalampidis, PH/SFT, CERN
+#
+# This utility can be used a a tty session handler in order
+# to display the current process status on the window.
+#
+
+KNOWN_DOMAINS="cern.ch cernvm.cern.ch google.com"
+INTERFACE=$(ifconfig -a | grep '^eth[0-9]' | awk '{print $1}')
+PIDFILE=/var/run/dumbq-check-network.pid
+FAILURES=0
+
+# Make sure we have only 1 instance
+if [ -f "$PIDFILE" ] && kill -0 `cat $PIDFILE` 2>/dev/null; then
+    exit 0
+fi  
+echo $$ > $PIDFILE
+
+# Infinite loop, waiting for domains to be accessible
+while true; do
+
+	# Just to be safe, test multiple domains
+	for DOMAIN in $KNOWN_DOMAINS; do
+
+		# First lookup DNS
+		IP=$(host -W5 $DOMAIN 2>/dev/null | grep 'has address' | awk '{print $4}' )
+		if [[ $? -eq 0 && ! -z "$IP" ]]; then
+
+			# Then attempt a ping, without DNS lookup
+			ping -c1 -w5 -n $IP >/dev/null 2>/dev/null
+			[ $? -eq 0 ] && exit 0
+
+		fi
+	done
+
+	# Check if we exhausted the retries
+	let FAILURES++
+	if [ $FAILURES -gt 60 ]; then
+		reboot
+		exit 0
+	fi
+
+	# If we reached here it means no domain is accessible, try to reconfig network
+	rm /etc/resolv.conf
+	ifdown $INTERFACE
+	ifup $INTERFACE
+
+	# Sleep for a minute, and try again
+	sleep 60
+
+done
